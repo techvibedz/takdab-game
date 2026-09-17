@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import { useKeepAwake } from 'expo-keep-awake';
 import * as Updates from 'expo-updates';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -7,9 +8,11 @@ import { WebView } from 'react-native-webview';
 const gameUrl = 'https://takdab-game.takdab-game.workers.dev/';
 
 export default function App() {
+  useKeepAwake();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (!Updates.isEnabled) return;
@@ -40,8 +43,9 @@ export default function App() {
         setSupportMultipleWindows={false}
         cacheEnabled
         cacheMode="LOAD_DEFAULT"
-        onLoadStart={() => { setLoading(true); setError(''); }}
-        onLoadEnd={() => setLoading(false)}
+        onLoadStart={() => { setLoading(true); setError(''); setProgress(0); }}
+        onLoadProgress={({ nativeEvent }) => setProgress(Math.max(0, Math.min(1, nativeEvent.progress)))}
+        onLoadEnd={() => { setProgress(1); setLoading(false); }}
         onError={event => {
           setLoading(false);
           setError(`تعذّر تحميل الطاولة (${event.nativeEvent.code}).`);
@@ -51,7 +55,10 @@ export default function App() {
         <ImageBackground source={require('./assets/splash-screen.png')} resizeMode="cover" style={styles.splash}>
           <View style={styles.loadingBadge}>
             {loading ? <ActivityIndicator color="#e6c46a" /> : <Pressable onPress={() => setRetry(value => value + 1)} style={styles.retry}><Text style={styles.retryText}>إعادة المحاولة</Text></Pressable>}
-            <Text style={styles.status}>{error || 'نحضّر الطاولة…'}</Text>
+            <View style={styles.progressCopy}>
+              <Text style={styles.status}>{error || `جار تحميل الطاولة ${Math.round(progress * 100)}٪`}</Text>
+              {loading && <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} /></View>}
+            </View>
           </View>
         </ImageBackground>
       )}
@@ -65,6 +72,9 @@ const styles = StyleSheet.create({
   splash: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 28 },
   loadingBadge: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22, backgroundColor: '#061a13d9' },
   status: { color: '#f7edce', fontSize: 13, fontWeight: '600' },
+  progressCopy: { minWidth: 190, alignItems: 'flex-end', gap: 7 },
+  progressTrack: { width: 190, height: 5, overflow: 'hidden', borderRadius: 5, backgroundColor: '#f7edce33' },
+  progressFill: { height: 5, borderRadius: 5, backgroundColor: '#e6c46a' },
   retry: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#e6c46a' },
   retryText: { color: '#061a13', fontSize: 12, fontWeight: '800' },
 });
