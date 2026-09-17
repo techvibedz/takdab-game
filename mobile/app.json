@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "تكذب",
+    "slug": "takdab-game",
+    "owner": "houdeifa515",
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
+    "orientation": "landscape",
+    "scheme": "takdab",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.houdeifa.takdab",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "يستخدم تكذب الميكروفون للمحادثة الصوتية داخل الطاولة.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.houdeifa.takdab",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#061a13",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#061a13",
+          "image": "./assets/icon.png",
+          "imageWidth": 280,
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/3aaa2a6d-5d99-4bbd-a242-f1e59a171306"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3aaa2a6d-5d99-4bbd-a242-f1e59a171306"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.partykit/
+.wrangler/
+.wrangler-dry-run/
+.dev.vars*
+.env.local
+.env
+artifacts/
+reference/
+releases/

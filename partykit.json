@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "takdab-game",
+  "main": "party/server.js",
+  "compatibilityDate": "2024-07-18"
+}

@@ -1,0 +1,44 @@
+name: Mobile release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix
+        required: true
+        default: 1.0.0
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v9
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+        working-directory: mobile
+      - name: Build Android APK
+        run: eas build --platform android --profile github --non-interactive --wait --json > android-build.json
+        working-directory: mobile
+      - name: Build unsigned iOS Simulator app
+        run: eas build --platform ios --profile ios-simulator --non-interactive --wait --json > ios-build.json
+        working-directory: mobile
+      - name: Download builds
+        run: |
+          curl -L "$(jq -r '.[0].artifacts.buildUrl' mobile/android-build.json)" -o takdab-android.apk
+          curl -L "$(jq -r '.[0].artifacts.buildUrl' mobile/ios-build.json)" -o takdab-ios-simulator.tar.gz
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh release create "v$VERSION" takdab-android.apk takdab-ios-simulator.tar.gz --title "Takdab v$VERSION" --generate-notes
