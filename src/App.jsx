@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Clone, Html, useGLTF } from '@react-three/drei'
+import { Clone, Html, useGLTF, useProgress } from '@react-three/drei'
 import { Euler, MathUtils, Quaternion, Vector3 } from 'three'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { FirstPersonCamera, EYE_POSITION } from './FirstPersonCamera'
@@ -28,6 +28,11 @@ function accusationPosition(object, camera, size) {
 function Model({ path, ...props }) {
   const { scene } = useGLTF(path)
   return <Clone object={scene} castShadow receiveShadow {...props} />
+}
+
+function TableLoading() {
+  const { progress } = useProgress()
+  return <Html center><div className="loading-token">♠<span>{`نجهّز الطاولة… ${Math.round(progress)}%`}</span></div></Html>
 }
 
 function PlayerSeat({ seat, playerId, playerKey, game, look, remoteLooks, motion, handAnchors }) {
@@ -140,7 +145,7 @@ function GameRound({ config, onExit, state, voice, presence }) {
   }
   return <main className="app">
     <Canvas shadows={quality.shadows} dpr={quality.dpr} camera={{ position: EYE_POSITION, fov: 75, near: .06 }} aria-label="مشهد اللعبة من منظور شخصيتك، اسحب أو استخدم الأسهم للنظر">
-      <Suspense fallback={<Html center><div className="loading-token">♠<span>نجهّز الطاولة…</span></div></Html>}><TableScene game={game} look={look} audio={audio} quality={quality} presence={presence} /></Suspense>
+      <Suspense fallback={<TableLoading />}><TableScene game={game} look={look} audio={audio} quality={quality} presence={presence} /></Suspense>
     </Canvas>
     <GameOverlay game={game} />
     {voice && <VoiceControls voice={voice} players={config.players} inGame />}
@@ -177,4 +182,4 @@ export default function App() {
   return config ? <LocalGameRound config={config} onExit={() => { setLastConfig(config); setConfig(null) }} />
     : <Lobby initial={lastConfig} onStart={setConfig} onMultiplayer={setOnline} />
 }
-for (const name of ['table', 'chair', 'card', 'avatar1', 'avatar2', 'avatar3', 'avatar4']) useGLTF.preload(`/models/${name}.glb`)
+for (const name of ['table', 'chair', 'card']) useGLTF.preload(`/models/${name}.glb`)
