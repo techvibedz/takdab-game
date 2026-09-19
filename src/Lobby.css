@@ -29,3 +29,17 @@
   .setup-content .roster { grid-column: 1/-1; display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; margin: 0; }.setup-content .roster-row { min-height: 44px; gap: 7px; }.setup-content .ready-label { font-size: 8px; }
   .setup-content .start-button { grid-column: 1/-1; min-height: 50px; }.setup-content .setup-note { grid-column: 1/-1; margin: 4px 0; font-size: 8px; }
 }
+
+@media (orientation: landscape) and (max-height: 420px) {
+  .lobby-shell { height: 100dvh; grid-template-rows: 44px minmax(0,1fr) 20px; }
+  .lobby-header { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
+  .lobby-brand { font-size: 20px; gap: 6px; }.lobby-brand > span { width: 26px; height: 32px; }.edition { display: none; }
+  .quiet-button { min-height: 40px; padding: 6px 11px; font-size: 10px; }
+  .lobby-panel { padding: 0 max(5%, env(safe-area-inset-right)) 0 max(4%, env(safe-area-inset-left)); }
+  .home-content h1 { font-size: 38px; line-height: 1.05; margin: 2px 0; letter-spacing: -2px; }
+  .home-content h1 span { font-size: 15px; margin-top: 2px; }.home-description { margin: 5px 0 8px; font-size: 10px; line-height: 1.45; }
+  .gold-button { min-height: 46px; padding: 6px 12px; font-size: 12px; }.gold-button small { margin-top: 2px; font-size: 8px; }.gold-button > b { font-size: 21px; }
+  .home-secondary-actions { gap: 6px; margin-top: 7px; }.online-soon,.home-avatar-button { min-height: 44px; padding: 5px 8px; font-size: 10px; }.online-soon small,.home-avatar-button small { margin-top: 2px; font-size: 8px; }.online-soon em,.home-avatar-button em { padding: 3px 6px; font-size: 8px; }.home-avatar-button em { width: 28px; height: 28px; }
+  .home-footnote { display: none; }.title-art { height: 92%; }.title-art > p { display: none; }
+  .avatar-content h1 { font-size: 24px; }.avatar-options { margin: 7px 0; }.avatar-options button { min-height: 49px; }
+}
