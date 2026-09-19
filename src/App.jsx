@@ -171,6 +171,7 @@ function OnlineSession({ options, onExit }) {
 
 export default function App() {
   useAudioUnlock()
+  useEffect(() => { window.ReactNativeWebView?.postMessage('ready') }, [])
   const [config, setConfig] = useState(null), [lastConfig, setLastConfig] = useState(null), [online, setOnline] = useState(null)
   if (online) return <OnlineSession options={online} onExit={() => setOnline(null)} />
   return config ? <LocalGameRound config={config} onExit={() => { setLastConfig(config); setConfig(null) }} />

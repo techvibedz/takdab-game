@@ -27,6 +27,15 @@ export default function App() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!loading) return;
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setError('استغرق تحميل الطاولة وقتًا أطول من المتوقع.');
+    }, 20000);
+    return () => clearTimeout(timeout);
+  }, [loading, retry]);
+
   return (
     <View style={styles.root}>
       <StatusBar hidden />
@@ -46,6 +55,12 @@ export default function App() {
         onLoadStart={() => { setLoading(true); setError(''); setProgress(0); }}
         onLoadProgress={({ nativeEvent }) => setProgress(Math.max(0, Math.min(1, nativeEvent.progress)))}
         onLoadEnd={() => { setProgress(1); setLoading(false); }}
+        onMessage={({ nativeEvent }) => {
+          if (nativeEvent.data !== 'ready') return;
+          setProgress(1);
+          setLoading(false);
+          setError('');
+        }}
         onError={event => {
           setLoading(false);
           setError(`تعذّر تحميل الطاولة (${event.nativeEvent.code}).`);
