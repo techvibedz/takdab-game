@@ -211,3 +211,26 @@ canvas:active { cursor: grabbing; }
 .local-accusation { text-align: center; }
 .local-accusation small { display: block; font-size: 11px; font-weight: 400; color: #ffe0b0; }
 @media (orientation: landscape) and (max-height: 540px) { .local-accusation, .reveal-banner { top: 33%; padding: 5px 14px; } .local-accusation { font-size: 16px; } }
+
+/* v1.2 hand cards: larger on phones, rank first. Appended last so it wins over the layered rules above. */
+.hand-card, .hand-card:first-child { flex: 0 0 78px; max-width: 84px; min-width: 56px; height: 112px; }
+.hand-card strong.card-rank { position: absolute; inset: 0 0 auto; top: 22%; display: block; text-align: center; font: 900 36px/1 Tahoma, Arial, sans-serif; letter-spacing: -.5px; }
+.hand-card strong.card-rank-word { font-size: 23px; top: 26%; }
+.card-suit { position: absolute; left: 0; right: 0; bottom: 18%; text-align: center; font: 26px/1 Georgia, serif; }
+.card-corner { font-size: 12px; font-weight: 900; }.card-corner small { font-size: 13px; }
+.hand-card.selected-card .card-rank { color: #7a4b12; }
+.red-card .card-rank, .red-card .card-suit { color: #c23a3a; }
+@media (max-width: 600px) { .hand-card, .hand-card:first-child { flex-basis: min(64px, 17vw); height: 98px; } .hand-card strong.card-rank { font-size: 31px; } .hand-card strong.card-rank-word { font-size: 19px; } }
+@media (orientation: landscape) and (max-height: 540px) {
+  .html-hand { min-height: 104px; padding: 16px 4px 4px; gap: 6px; }
+  .hand-card, .hand-card:first-child { flex-basis: 64px; height: 88px; }
+  .hand-card strong.card-rank { font-size: 30px; top: 20%; }.hand-card strong.card-rank-word { font-size: 19px; top: 26%; }
+  .card-suit { font-size: 21px; bottom: 12%; }.card-corner { font-size: 11px; }.card-bottom { display: none; }
+}
+@media (orientation: landscape) and (max-height: 420px) {
+  .html-hand { min-height: 96px; padding: 14px 4px 3px; }
+  .hand-card, .hand-card:first-child { flex-basis: 60px; height: 82px; }
+  .hand-card strong.card-rank { font-size: 28px; }.hand-card strong.card-rank-word { font-size: 18px; }
+  .card-suit { font-size: 19px; }
+}
+@media (orientation: landscape) and (max-height: 540px), (max-width: 600px) { .hand-card .card-corner { display: none; } .hand-card strong.card-rank { top: 18%; } .hand-card strong.card-rank-word { top: 24%; } }

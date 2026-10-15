@@ -97,6 +97,7 @@ M = {
     'marble': material('Marble_Top', '#d9d4cc', .2),
     'leather': material('Leather_Cognac', '#5c2e16', .55),
     'glow': material('Warm_Glow', '#ffd59a', .5, emit='#ffbe6a', strength=5),
+    'soft_glow': material('Pendant_Diffuser', '#7a5a36', .6, emit='#ffb866', strength=1.6),
     'strip': material('Shelf_Light', '#ffcf8a', .5, emit='#ffb45c', strength=4),
     'logo': material('Team_Mashouda', rough=.6, tex=logo, emit='texture', strength=.35),
     'frame': material('Frame_Gold', '#b88a3c', .35, .8),
@@ -257,7 +258,7 @@ solid = dome.modifiers.new('shell', 'SOLIDIFY'); solid.thickness = .03
 add(dome, 'black_metal', True)
 bpy.ops.mesh.primitive_torus_add(major_radius=.6, minor_radius=.02, major_segments=40, location=(0, 0, 2.15))
 add(bpy.context.object, 'brass', True)
-cyl('Pendant_Diffuser', .5, .02, (0, 0, 2.17), 'glow', 32)
+cyl('Pendant_Diffuser', .38, .02, (0, 0, 2.2), 'soft_glow', 32)  # recessed and dimmer: a seated eye line no longer sees a white disc
 
 # ---------- bake modifiers, merge to one mesh (one draw call per material), export ----------
 bpy.ops.object.select_all(action='DESELECT')

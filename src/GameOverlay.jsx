@@ -81,8 +81,11 @@ export function GameOverlay({ game }) {
             className={`hand-card ${['♥', '♦'].includes(card.suit) ? 'red-card' : ''} ${selected ? 'selected-card' : ''}`}
             disabled={!local || (!selected && game.selectedCards.length === MAX_PLAY)} aria-pressed={selected}
             aria-label={`${rankName(card.rank)} ${suitName(card.suit)}`} onClick={() => game.toggleCard(index)}>
+            {/* The rank decides every play, so it is the biggest thing on the card. */}
             <span className="card-corner">{rankName(card.rank)}<small>{card.suit}</small></span>
-            <strong>{card.suit}</strong><span className="card-corner card-bottom">{rankName(card.rank)}<small>{card.suit}</small></span>
+            <strong className={`card-rank ${rankName(card.rank).length > 2 ? 'card-rank-word' : ''}`}>{rankName(card.rank)}</strong>
+            <span className="card-suit" aria-hidden="true">{card.suit}</span>
+            <span className="card-corner card-bottom">{rankName(card.rank)}<small>{card.suit}</small></span>
             {selected && <span className="card-check">✓</span>}
           </button>
         })}

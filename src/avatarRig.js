@@ -62,8 +62,8 @@ export function limitJoint(bone, rest, min, max) {
 
 // Remote avatars turn shoulders with the head (30%) so the neck never twists far enough to tear the beard from the collar.
 export const SPINE_LOOK_SHARE = .3
-export function poseNeck(rig, angles, delta) {
-  const yaw = MathUtils.clamp(angles.y, -.78, .78), share = rig.local ? 0 : SPINE_LOOK_SHARE
+export function poseNeck(rig, angles, delta, spineShare = SPINE_LOOK_SHARE) {
+  const yaw = MathUtils.clamp(angles.y, -.78, .78), share = rig.local ? 0 : spineShare
   rig.lookYaw = yaw * share
   limitEuler.set(MathUtils.clamp(angles.x,-.28,.28),MathUtils.clamp(yaw * (1 - share),share ? -.48 : -.60,share ? .48 : .60),MathUtils.clamp(angles.z,-.12,.12),'YXZ')
   limitRotation.setFromEuler(limitEuler).premultiply(rig.neckRest)
@@ -126,4 +126,25 @@ export function poseArm(arm, target, pole, pronation = -1.1) {
   arm.lower.quaternion.multiply(twist.setFromAxisAngle(arm.lowerAxis,pronation))
   arm.lower.updateWorldMatrix(false,true)
   return arm.hand.getWorldPosition(wrist)
+}
+
+const handTwist = new Quaternion(), handRelative = new Quaternion(), forearmWorld = new Quaternion(), restInverse = new Quaternion()
+export const FOREARM_TWIST = 1.7
+// Reach a hand orientation the way an arm does: the forearm rolls (pronation/supination) about its own axis,
+// the wrist only bends. Clamping the whole rotation at the wrist used to leave hands sideways and fans lying flat.
+export function orientHand(arm, desired) {
+  arm.lower.getWorldQuaternion(forearmWorld)
+  handRelative.copy(forearmWorld).invert().multiply(desired).multiply(restInverse.copy(arm.handRest).invert())
+  const a = arm.lowerAxis, along = handRelative.x * a.x + handRelative.y * a.y + handRelative.z * a.z
+  let angle = 2 * Math.atan2(along, handRelative.w)
+  if (angle > Math.PI) angle -= 2 * Math.PI
+  if (angle < -Math.PI) angle += 2 * Math.PI
+  angle = MathUtils.clamp(angle, -FOREARM_TWIST, FOREARM_TWIST)
+  arm.lower.quaternion.multiply(handTwist.setFromAxisAngle(a, angle))
+  arm.lower.updateWorldMatrix(false, true)
+  arm.lower.getWorldQuaternion(forearmWorld)
+  arm.hand.quaternion.copy(forearmWorld.invert().multiply(desired))
+  limitJoint(arm.hand, arm.handRest, [-.96, -.61, -.70], [.96, .61, .70])
+  arm.hand.updateWorldMatrix(false, true)
+  return angle
 }

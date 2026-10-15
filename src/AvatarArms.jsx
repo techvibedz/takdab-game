@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { AnimationMixer, LoopOnce, LoopRepeat, Matrix4, Quaternion, Vector3 } from 'three'
 import { handPoint, seatPoint, playPoint, smooth } from './tableMotion'
-import { avatarAnimation, poseArm, updateAvatarMixer, limitJoint } from './avatarRig'
+import { avatarAnimation, poseArm, updateAvatarMixer, orientHand } from './avatarRig'
 
 // Game timing is authoritative; IK aligns the original textured hands with the cards.
 export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, playAnchor }) {
@@ -50,9 +50,12 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
         v.target.y += Math.sin(Math.min(motion.current / 1.2, 1) * Math.PI) * 0.06
       }
       if (accusing) {
+        // Point out across the table: bias toward the seat's forward so the arm extends instead of folding across the chest.
         arm.upper.getWorldPosition(v.forward)
         v.target.fromArray(game.seats[game.challenge.accused].position); v.target.y = 0.95
-        v.target.sub(v.forward).normalize().multiplyScalar(0.50).add(v.forward)
+        v.target.sub(v.forward).normalize().add(v.palmX.set(0, 0, .7).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])).normalize()
+        v.target.y = Math.max(v.target.y, .08)
+        v.target.multiplyScalar(0.5).add(v.forward)
       }
       if (!holding && (game.phase === 'finished' || game.placements?.includes(playerId))) {
         v.target.fromArray(seatPoint(playerId, -0.30, winner ? 1.03 : 0.48, 0.34, game.seats))
@@ -66,8 +69,7 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
       arm.target.lerp(v.target, 1 - Math.exp(-(idle ? 9 : 26) * delta))
       v.pole.set(holding ? .35 : -.35, -1, -.12).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
       const restingHand = !holding && !playing && !accusing
-      const wrist = poseArm(arm, arm.target, v.pole, restingHand ? -.75 : -1.1)
-      arm.hand.parent.getWorldQuaternion(v.parent).invert()
+      const wrist = poseArm(arm, arm.target, v.pole, 0)
       v.forward.set(0, 0, 1).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
       if (accusing) {
         v.forward.fromArray(game.seats[game.challenge.accused].position); v.forward.y = 0.95
@@ -81,9 +83,7 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
       v.palmZ.crossVectors(v.palmX,v.forward).normalize()
       v.palmX.crossVectors(v.forward,v.palmZ).normalize()
       v.palm.setFromRotationMatrix(v.basis.makeBasis(v.palmX,v.forward,v.palmZ))
-      arm.hand.quaternion.copy(v.parent.multiply(v.palm))
-      limitJoint(arm.hand,arm.handRest,[-.96,-.61,-.70],[.96,.61,.70])
-      arm.hand.updateWorldMatrix(false, true)
+      orientHand(arm, v.palm)
       const anchor = holding ? handAnchor.current : playAnchor.current
       if (anchor) {
         // Same actual hand transform drives the grip, held cards and flight endpoints.

@@ -76,7 +76,8 @@ function PlayerSeat({ seat, playerId, playerKey, game, look, remoteLooks, motion
       }
       if (game.phase === 'reveal' && game.challenge?.accused === playerId) v.angles.z = Math.sin(motion.current * 4) * Math.exp(-motion.current) * .08
     }
-    poseNeck(rig, v.angles, delta)
+    // An accuser squares the shoulders toward the accused; otherwise the torso only follows a little.
+    poseNeck(rig, v.angles, delta, game.challenge?.caller === playerId ? .55 : undefined)
     if (accusation.current) {
       head.updateWorldMatrix(true, false)
       head.getWorldPosition(accusation.current.position)

@@ -36,7 +36,8 @@ function CardModel({ card, face = false, highlighted = false, quality }) {
   }, [card.rank, card.suit, face, quality])
   useEffect(() => () => texture?.dispose(), [texture])
   return <>
-    <group scale={scale}><Clone object={scene} position={offset} castShadow receiveShadow /></group>
+    {/* Cards never cast shadows: under the low pendant spot, a floating card threw a black card-sized slab onto the felt. */}
+    <group scale={scale}><Clone object={scene} position={offset} receiveShadow /></group>
     {face && <mesh position={[0, 0, 0.009]}>
       <planeGeometry args={[0.307, 0.447]} />
       <meshBasicMaterial map={texture} toneMapped={false} />
@@ -160,7 +161,7 @@ export function GameCards({ game, motion, handAnchors }) {
     {game.centerPile.map((card, index) =>
       <PileCard key={card.id} card={card} index={index} game={game} motion={motion} handAnchors={handAnchors} />)}
     {game.lastPlay && ['playing', 'challenge'].includes(game.phase) &&
-      <Html key={game.lastPlay.id} position={[0, 0.42, 0]} center zIndexRange={[20, 0]} style={{ left: 0, pointerEvents: 'none', direction: 'ltr', width: 'max-content' }}>
+      <Html key={game.lastPlay.id} position={[0, 0.5, -0.1]} center zIndexRange={[20, 0]} style={{ left: 0, pointerEvents: 'none', direction: 'ltr', width: 'max-content' }}>
         <div className="play-count" dir="rtl" aria-label={`${game.playerName(game.lastPlay.playerId)}: ${game.lastPlay.actualCards.length} أوراق`}>
           <span className="play-count-cards" aria-hidden="true">♠</span>
           <strong dir="ltr">×{game.lastPlay.actualCards.length}</strong>
