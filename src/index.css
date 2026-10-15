@@ -234,3 +234,5 @@ canvas:active { cursor: grabbing; }
   .card-suit { font-size: 19px; }
 }
 @media (orientation: landscape) and (max-height: 540px), (max-width: 600px) { .hand-card .card-corner { display: none; } .hand-card strong.card-rank { top: 18%; } .hand-card strong.card-rank-word { top: 24%; } }
+/* The centre already shows rank and suit; corner labels only crowded them. */
+.hand-card .card-corner { display: none; }
