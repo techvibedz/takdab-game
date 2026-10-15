@@ -160,7 +160,7 @@ FY = HALF - .02
 LX = -1.75
 box('Logo_Frame', (1.62, .07, 1.62), (LX, FY - .02, 2.08), 'frame', bevel=.015)
 box('Logo_Mat', (1.46, .02, 1.46), (LX, FY - .06, 2.08), 'wood')
-plane('Team_Mashouda_Logo', (1.32, 1.32), (LX, FY - .075, 2.08), (math.pi / 2, 0, math.pi), 'logo')
+plane('Team_Mashouda_Logo', (1.32, 1.32), (LX, FY - .075, 2.08), (math.pi / 2, 0, 0), 'logo')  # front face toward the room; (…, math.pi) showed the mirrored back
 cyl('Picture_Light_Arm', .015, .26, (LX, FY - .13, 3.0), 'brass', 8, rot=(math.pi / 2, 0, 0))
 cyl('Picture_Light', .04, .8, (LX, FY - .26, 3.0), 'brass', 12, rot=(0, math.pi / 2, 0), smooth=True)
 box('Picture_Light_Glow', (.74, .02, .02), (LX, FY - .27, 2.965), 'glow')
