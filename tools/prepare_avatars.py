@@ -29,6 +29,23 @@ def build(number):
     bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.mesh.remove_doubles(threshold=0.00001)
     bpy.ops.object.mode_set(mode='OBJECT')
+    # Mesh graph for surface (geodesic) distances; used to fit fingers and to separate arms from the body.
+    adjacency=[[] for _ in mesh.data.vertices]
+    for edge in mesh.data.edges:
+        a,b=edge.vertices
+        length=(mesh.data.vertices[a].co-mesh.data.vertices[b].co).length
+        adjacency[a].append((b,length));adjacency[b].append((a,length))
+    def geodesic(seeds, allowed=None):
+        dist={i:0. for i in seeds};label={i:k for k,i in enumerate(seeds)};queue=[(0.,i) for i in seeds];heapq.heapify(queue)
+        while queue:
+            cost,index=heapq.heappop(queue)
+            if cost>dist[index]: continue
+            for neighbor,length in adjacency[index]:
+                if allowed is not None and neighbor not in allowed: continue
+                candidate=cost+length
+                if candidate<dist.get(neighbor,math.inf):
+                    dist[neighbor]=candidate;label[neighbor]=label[index];heapq.heappush(queue,(candidate,neighbor))
+        return dist,label
     data = bpy.data.armatures.new(f'Avatar{number}_Skeleton')
     rig = bpy.data.objects.new(f'Avatar{number}_Rig', data)
     bpy.context.collection.objects.link(rig)
@@ -61,6 +78,65 @@ def build(number):
                 name=f'{finger}{j+1}_{side}'
                 parent=f'Hand_{side}' if j==0 else f'{finger}{j}_{side}'
                 specs.append((name,points[j],points[j+1],parent));finger_bones[side].append(name)
+    # Fit the finger bones to the actual fingers. Hand-typed finger points sat between fingers, so curling one
+    # finger dragged its neighbour's skin; every finger now gets bones on its own centreline and its own skin.
+    co=[v.co.copy() for v in mesh.data.vertices]
+    finger_fit={}; finger_report={}
+    for side,s in [('L',-1),('R',1)]:
+        wrist=point(s*wrist_x,wrist_y,wrist_z)
+        near=lambda p: wrist_x-.05<p.x*s<wrist_x+.055 and wrist_y-.15<p.z<wrist_y+.012 and abs(p.y-wrist.y)<.065
+        box={i for i,p in enumerate(co) if near(p)}
+        ring=[i for i in box if abs(co[i].z-wrist.z)<.006 and (co[i]-wrist).length<.05]
+        reach,_=geodesic(ring,box)                       # skin connected to the wrist; trousers are a separate shell
+        skin={i for i in reach if co[i].z<wrist_y-.004}
+        knuckle_z=wrist_y-.046
+        # Digit tips are the surface extremities farthest from the wrist: take the five most distant local maxima
+        # (well apart), call the highest one the thumb and order the rest front to back: index, middle, ring, little.
+        peaks=[i for i in skin if all(reach.get(n,0)<=reach[i] for n,_l in adjacency[i] if n in skin)]
+        peaks.sort(key=lambda i:-reach[i]); digits=[]
+        for i in peaks:
+            if all((co[i]-co[j]).length>.009 for j in digits): digits.append(i)
+            if len(digits)==5: break
+        assert len(digits)==5, f'avatar {number} {side}: {len(digits)} digit tips from {len(peaks)} peaks, skin {len(skin)}, ring {len(ring)}'
+        thumb_tip=max(digits,key=lambda i:co[i].z)
+        tips=sorted([i for i in digits if i!=thumb_tip],key=lambda i:co[i].y)
+        thumb_zone=[thumb_tip]
+        dist,label=geodesic([thumb_tip]+tips,skin)
+        # Majority vote over neighbours: an isolated vertex labelled with the wrong finger tore into a spike.
+        for _ in range(3):
+            changed={}
+            for i in skin:
+                votes={}
+                for n,_l in adjacency[i]:
+                    if n in label: votes[label[n]]=votes.get(label[n],0)+1
+                if votes:
+                    best=max(votes,key=votes.get)
+                    if best!=label.get(i) and votes[best]>len(adjacency[i])/2: changed[i]=best
+            label.update(changed)
+        fit={}
+        for k,finger in enumerate(finger_names):
+            members=[i for i in skin if label.get(i)==k]
+            if finger=='Thumb':
+                base=min(members,key=lambda i:(co[i]-point(s*(wrist_x-.01),wrist_y-.02,wrist_z+.022)).length)
+                length=dist[base]
+            else:
+                rim=[i for i in members if abs(co[i].z-knuckle_z)<.005]
+                # Estimated knuckle height runs low on some meshes; start the finger a little inside the hand so its
+                # whole base bends with it instead of standing up as a shard.
+                length=(sorted(dist[i] for i in rim)[len(rim)//2] if rim else knuckle_z-co[tips[k-1]].z)+.012
+            def centre(at,width=.005):
+                band=[co[i] for i in members if abs(dist[i]-at)<width]
+                return sum(band,Vector())/len(band) if band else None
+            joints=[centre(length*(1-f)) for f in (0,.45,.75)]+[centre(.004,.006)]
+            fit[finger]=(joints,length,set(members),dist)
+        finger_fit[side]=fit
+        finger_report[side]={f:(len(v[2]),round(v[1],3)) for f,v in fit.items()}; finger_report[side+'_thumbzone']=len(thumb_zone)
+        # Replace this side's finger specs with the fitted centrelines (keep originals where a band was empty).
+        for idx,(name,head,tail,parent) in enumerate(specs):
+            if not name.endswith('_'+side) or not any(name.startswith(f) for f in finger_names): continue
+            base=name[:-2]; j=int(base[-1])-1; finger=base[:-1]
+            joints=fit[finger][0]
+            if joints[j] is not None and joints[j+1] is not None: specs[idx]=(name,joints[j],joints[j+1],parent)
     for name,head,tail,parent in specs:
         bone=data.edit_bones.new(name);bone.head=head;bone.tail=tail
         if any(k in name for k in ['Arm','Forearm','Hand']+finger_names): bone.align_roll(Vector((0,1,0)))
@@ -98,11 +174,6 @@ def build(number):
         beard_floor={1:.78,2:.758,3:.735,4:.775}[number]
         return height>=.795 or (height>=beard_floor and -back>.041 and abs(x)<.085)
     # Surface distances keep fingers attached to hands instead of nearby trousers.
-    adjacency=[[] for _ in mesh.data.vertices]
-    for edge in mesh.data.edges:
-        a,b=edge.vertices
-        length=(mesh.data.vertices[a].co-mesh.data.vertices[b].co).length
-        adjacency[a].append((b,length));adjacency[b].append((a,length))
     def surface_distances(predicate):
         distances=[math.inf]*len(mesh.data.vertices);queue=[]
         for vertex in mesh.data.vertices:
@@ -137,12 +208,16 @@ def build(number):
             raw=[1/max(.012,distance(vertex.co,*segments[name]))**4 for name in group_names]
             for name,value in zip(group_names,raw): weights[name]=fraction*value/sum(raw)
         hand_name=f'Hand_{side}'
-        finger_fraction=1-smooth(wrist_y-.055,wrist_y-.025,height)
-        fingers=weights.get(hand_name,0)*finger_fraction
-        weights[hand_name]-=fingers
-        candidates=finger_bones[side]
-        raw=[1/max(.004,distance(vertex.co,*segments[name]))**5 for name in candidates]
-        for name,value in zip(candidates,raw): weights[name]=fingers*value/sum(raw)
+        for finger,(joints,length,members,dist) in finger_fit[side].items():
+            if vertex.index not in members: continue
+            along=length-dist[vertex.index]                # distance from the knuckle toward the tip
+            share=weights.get(hand_name,0)*smooth(-.022,.006,along)
+            if share<=0: break
+            weights[hand_name]-=share
+            first=1-smooth(length*.45-.004,length*.45+.004,along); last=smooth(length*.75-.004,length*.75+.004,along)
+            for j,w in enumerate([first,max(0,1-first-last),last]):
+                if w>0: weights[f'{finger}{j+1}_{side}']=share*w
+            break
         neck=smooth(.737,.783,height)*(1-smooth(.06,.105,abs(x)))
         if neck:
             weights={name:weight*(1-neck) for name,weight in weights.items()}
@@ -243,17 +318,25 @@ def build(number):
                 aim('Forearm_L',point(-.2,.98,.12))
             for side in ['L','R']:
                 for finger in finger_names:
-                    # R holds the fan; L rests relaxed with a natural curl rather than a flat open palm.
-                    # R holds the fan against the finger pads: fingers stay nearly straight behind the cards
-                    # (curling pushed the tips through the faces) and the thumb folds across the front.
-                    grip=.04 if side=='R' else .42
-                    if finger=='Thumb': grip=.5 if side=='R' else grip*.5
+                    # Flexion is about the bone's Z axis (the knuckle line); X is the palm normal, so the old X
+                    # "curl" bent fingers sideways into each other and never closed a fist. Palms face medially:
+                    # Hand_L flexes toward +X (negative Z rotation), Hand_R toward -X (positive Z rotation).
+                    grip=.03 if side=='R' else .38           # R: straight pads behind the fan (any flex pierces the faces); L: relaxed on the felt
+                    if finger=='Thumb': grip=.45 if side=='R' else .25
                     if finger in ['Ring','Little'] and side=='L': grip+=.08
-                    if name=='PlayCards' and side=='L': grip=.22*(1-.7*amount)
-                    if name=='Accuse' and side=='L': grip=.7 if finger not in ['Index','Thumb'] else -.1 if finger=='Index' else .2
-                    if name=='Celebrate' and side=='L': grip=.7
+                    if name=='PlayCards' and side=='L': grip=.25*(1-.6*amount)
+                    if name=='Accuse' and side=='L': grip=.95 if finger not in ['Index','Thumb'] else -.05 if finger=='Index' else .45
+                    if name=='Celebrate' and side=='L': grip=1.15 if finger!='Thumb' else .8  # a closed fist, thumb wrapped over the fingers
+                    flex=-1 if side=='L' else 1
                     for joint in range(1,4):
-                        rig.pose.bones[f'{finger}{joint}_{side}'].rotation_euler.x=-grip*([.7,1,.65][joint-1])
+                        bone=rig.pose.bones[f'{finger}{joint}_{side}']
+                        if finger=='Thumb':
+                            # The thumb is angled off the knuckle line; it folds toward the middle knuckle instead.
+                            rest=bone.bone.matrix_local.to_3x3(); along=rest.col[1]
+                            toward=rig.data.bones[f'Middle1_{side}'].head_local-bone.bone.head_local
+                            axis=(rest.inverted()@along.cross(toward)).normalized()
+                            bone.rotation_euler=Quaternion(axis,-grip*([.75,1,.7][joint-1])).to_euler('XYZ')
+                        else: bone.rotation_euler=(0,0,flex*grip*([.75,1,.7][joint-1]))
             if name=='React': rig.pose.bones['Neck'].rotation_euler.z=.06*amount
             for bone in rig.pose.bones:
                 if bone.name in ['Hips','Spine','Neck','Head'] or any(k in bone.name for k in ['Arm','Forearm','Hand']+finger_names):
@@ -265,7 +348,10 @@ def build(number):
         elif bone.name.startswith('UpperArm'): limits=((-145,-90,-110),(145,90,110))
         elif bone.name.startswith('Forearm'): limits=((-145,-90,-85),(5,90,85))
         elif bone.name.startswith('Hand'): limits=((-55,-35,-40),(55,35,40))
-        elif any(bone.name.startswith(f) for f in finger_names): limits=((-90,-12,-12),(15,12,12))
+        elif any(bone.name.startswith(f) for f in finger_names):
+            # Z is flexion (up to 95 deg toward the palm, 15 deg back); X/Y allow only a little spread.
+            limits=((-12,-12,-95),(12,12,15)) if bone.name.endswith('_L') else ((-12,-12,-15),(12,12,95))
+            if bone.name.startswith('Thumb'): limits=((-60,-30,-60),(60,30,60))
         else: continue
         constraint=bone.constraints.new('LIMIT_ROTATION');constraint.name='Anatomical rotation limits'
         constraint.owner_space='LOCAL';constraint.use_transform_limit=True
@@ -292,7 +378,7 @@ def build(number):
     rig.animation_data.action=bpy.data.actions['SeatedIdle']
     bpy.context.scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=str(OUT/f'avatar{number}-rigged.blend'))
-    return {'avatar':number,'vertices':len(mesh.data.vertices),'bones':len(data.bones),
+    return {'avatar':number,'fingers':finger_report,'vertices':len(mesh.data.vertices),'bones':len(data.bones),
         'finger_bones':30,'rigid_face_vertices':len(rigid_head),'weight_sum_max_error':max(abs(sum(g.weight for g in v.groups)-1) for v in mesh.data.vertices),
         'max_influences':max(len(v.groups) for v in mesh.data.vertices),
         'rotation_limited_bones':sum(bool(b.constraints) for b in rig.pose.bones),

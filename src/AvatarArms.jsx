@@ -34,6 +34,7 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
     const playing = game.lastPlay?.playerId === playerId && game.phase === 'playing'
     const collecting = game.phase === 'collect' && game.challenge?.loser === playerId
     const winner = game.placements?.[0] === playerId
+    const emptyHanded = game.phase !== 'dealing' && !playing && !collecting && (game.hands[playerId].length === 0 || game.placements?.includes(playerId))
     rig.root.updateWorldMatrix(true, true)
     rig.arms.forEach((arm, index) => {
       const holding = index === 1
@@ -50,23 +51,33 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
         v.target.y += Math.sin(Math.min(motion.current / 1.2, 1) * Math.PI) * 0.06
       }
       if (accusing) {
-        // Point out across the table: bias toward the seat's forward so the arm extends instead of folding across the chest.
-        arm.upper.getWorldPosition(v.forward)
-        v.target.fromArray(game.seats[game.challenge.accused].position); v.target.y = 0.95
-        v.target.sub(v.forward).normalize().add(v.palmX.set(0, 0, .7).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])).normalize()
-        v.target.y = Math.max(v.target.y, .08)
-        v.target.multiplyScalar(0.5).add(v.forward)
+        // A clear "you!": the hand goes forward and up in front of the face, offset toward the accused. Aiming the
+        // arm straight at someone on the card-hand side folded it across the chest into the card hand.
+        rig.arms[0].upper.getWorldPosition(v.forward); rig.arms[1].upper.getWorldPosition(v.palmZ)
+        v.forward.add(v.palmZ).multiplyScalar(.5)
+        v.palmZ.set(0, 0, 1).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
+        v.target.fromArray(game.seats[game.challenge.accused].position).sub(v.forward); v.target.y = 0
+        v.palmX.copy(v.palmZ).multiplyScalar(v.target.dot(v.palmZ)); v.target.sub(v.palmX)
+        const lateral = v.target.length() // zero when the accused sits straight across
+        v.target.multiplyScalar(lateral > 1e-3 ? .14 / lateral : 0).addScaledVector(v.palmZ, .38).add(v.forward); v.target.y += .16
       }
-      if (!holding && (game.phase === 'finished' || game.placements?.includes(playerId))) {
-        v.target.fromArray(seatPoint(playerId, -0.30, winner ? 1.03 : 0.48, 0.34, game.seats))
-        if (winner) v.target.x += Math.sin(state.clock.elapsedTime * 4) * 0.035
+      // While accusing, the card hand drops to the table edge and out of the way, so the point clears the fan.
+      if (holding && game.challenge?.caller === playerId && game.phase === 'reveal') v.target.fromArray(seatPoint(playerId, .33, .42, playerId === 0 ? .6 : .5, game.seats))
+      // A player out of cards rests the card hand on the felt like the other one; nobody grips thin air.
+      if (holding && emptyHanded) v.target.fromArray(seatPoint(playerId, .26, .385, playerId === 0 ? .65 : .53, game.seats))
+      if (!holding && winner) {
+        // Winner's fist pump: up, a beat, up again, settling into a held raise.
+        const t = state.clock.elapsedTime
+        v.target.fromArray(seatPoint(playerId, -0.24, .98, 0.3, game.seats))
+        v.target.y += Math.abs(Math.sin(t * 4.2)) * .07
       }
-      const idle = !playing && !collecting && !accusing && game.phase !== 'dealing'
+      const gesturing = game.challenge?.caller === playerId && game.phase === 'reveal'
+      const idle = !playing && !collecting && !gesturing && game.phase !== 'dealing'
       // Small hand drift so seated players never freeze; the holding hand carries its cards with it.
       if (idle) v.target.y += Math.sin(state.clock.elapsedTime * (holding ? 1.3 : .9) + playerId * 2 + index) * (holding ? .008 : .004)
       if (!arm.initialized) { arm.target.copy(v.target); arm.initialized = true }
       // Card motion is time-critical; everything else eases like a relaxed arm instead of snapping.
-      arm.target.lerp(v.target, 1 - Math.exp(-(idle ? 9 : 26) * delta))
+      arm.target.lerp(v.target, 1 - Math.exp(-(playing || collecting || game.phase === 'dealing' ? 26 : gesturing ? 11 : 9) * delta))
       v.pole.set(holding ? .35 : -.35, -1, -.12).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
       poseArm(arm, arm.target, v.pole, 0)
       const side = holding ? PALM_SIDE.R : PALM_SIDE.L, seatAngle = game.seats[playerId].rotation[1]
@@ -75,7 +86,7 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
         v.palmZ.fromArray(game.seats[game.challenge.accused].position); v.palmZ.y = 0.95
         v.palmZ.sub(v.forward).normalize()
       }
-      const kind = holding ? 'hold' : accusing ? 'point' : playing ? 'place' : winner ? 'raise' : 'rest'
+      const kind = holding ? (emptyHanded ? 'rest' : 'hold') : accusing ? 'point' : playing ? 'place' : winner ? 'raise' : 'rest'
       orientHand(arm, handGoal(kind, seatAngle, side, v.palm, v.palmZ))
       // Same actual hand transform drives the grip, held cards and flight endpoints.
       const anchor = holding ? handAnchor.current : playAnchor.current
