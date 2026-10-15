@@ -58,10 +58,15 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
         v.target.fromArray(seatPoint(playerId, -0.30, winner ? 1.03 : 0.48, 0.34, game.seats))
         if (winner) v.target.x += Math.sin(state.clock.elapsedTime * 4) * 0.035
       }
+      const idle = !playing && !collecting && !accusing && game.phase !== 'dealing'
+      // Small hand drift so seated players never freeze; the holding hand carries its cards with it.
+      if (idle) v.target.y += Math.sin(state.clock.elapsedTime * (holding ? 1.3 : .9) + playerId * 2 + index) * (holding ? .008 : .004)
       if (!arm.initialized) { arm.target.copy(v.target); arm.initialized = true }
-      arm.target.lerp(v.target, 1 - Math.exp(-26 * delta))
+      // Card motion is time-critical; everything else eases like a relaxed arm instead of snapping.
+      arm.target.lerp(v.target, 1 - Math.exp(-(idle ? 9 : 26) * delta))
       v.pole.set(holding ? .35 : -.35, -1, -.12).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
-      const wrist = poseArm(arm, arm.target, v.pole, holding || playing || accusing ? -1.1 : 1.1)
+      const restingHand = !holding && !playing && !accusing
+      const wrist = poseArm(arm, arm.target, v.pole, restingHand ? -.75 : -1.1)
       arm.hand.parent.getWorldQuaternion(v.parent).invert()
       v.forward.set(0, 0, 1).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
       if (accusing) {
@@ -70,7 +75,9 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
       }
       // Fingers point up along the fan; the wrist no longer twists to a palm-up tray pose.
       if (holding || playing) v.forward.set(0, .88, .475).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
-      v.palmX.set(holding || playing || accusing ? 1 : -1, 0, 0).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
+      // The free hand rests palm-down with fingers drooping toward the felt instead of a palm-up tray.
+      if (restingHand) v.forward.set(0, winner ? 1 : -.42, winner ? .25 : 1).normalize().applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
+      v.palmX.set(1, 0, 0).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
       v.palmZ.crossVectors(v.palmX,v.forward).normalize()
       v.palmX.crossVectors(v.forward,v.palmZ).normalize()
       v.palm.setFromRotationMatrix(v.basis.makeBasis(v.palmX,v.forward,v.palmZ))

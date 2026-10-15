@@ -1,4 +1,4 @@
-import { cheatReducer, createGame, MAX_PLAY } from '../src/cheatEngine.js'
+import { cheatReducer, createGame, MAX_PLAY, botChooseRank, botPlayIndices } from '../src/cheatEngine.js'
 import { cleanAvatar, cleanName, parseClientMessage, playerView } from '../src/multiplayerProtocol.js'
 
 const EMPTY_STATE = { hostId: null, players: [], game: null, timer: null }
@@ -169,10 +169,9 @@ export default class TakdabServer {
     let game = this.state.game
     if (kind === 'auto') {
       const playerId = game.turnPlayerIndex
-      const hand = game.hands[playerId]
-      if (!game.currentRank && hand.length) game = cheatReducer(game, { type: 'CHOOSE_RANK', playerId, rank: hand[0].rank })
-      const match = hand.findIndex(card => card.rank === game.currentRank)
-      game = cheatReducer(game, { type: 'PLAY', playerId, indices: [match >= 0 ? match : 0] })
+      if (!game.currentRank) game = cheatReducer(game, { type: 'CHOOSE_RANK', playerId, rank: botChooseRank(game, playerId) })
+      // During a challenge window the hand is unchanged by PLAY's implicit advance, so indices stay valid.
+      game = cheatReducer(game, { type: 'PLAY', playerId, indices: botPlayIndices(game, playerId) })
     } else if (game.phase === 'dealing') game = cheatReducer(game, { type: 'DEAL_PROGRESS', count: 52 })
     else if (game.phase === 'playing') game = cheatReducer(game, { type: 'PLAY_COMPLETE', playId: game.lastPlay.id })
     else if (game.phase === 'reveal') game = cheatReducer(game, { type: 'COLLECT', playerId: game.turnPlayerIndex, playId: game.lastPlay.id })

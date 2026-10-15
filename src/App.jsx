@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Clone, Html, useGLTF, useProgress } from '@react-three/drei'
 import { Euler, MathUtils, Quaternion, Vector3 } from 'three'
@@ -30,9 +30,17 @@ function Model({ path, ...props }) {
   return <Clone object={scene} castShadow receiveShadow {...props} />
 }
 
-function TableLoading() {
+// The room only receives shadows, so walls and ceiling never block the table's key light.
+function Room() {
+  const { scene } = useGLTF('/models/room.glb')
+  return <group position={[0, -.5, 0]}><Clone object={scene} receiveShadow /></group>
+}
+
+// Read outside the Canvas: inside a Suspense fallback the store update lands mid-render and the percentage froze at 0.
+function TableLoading({ ready }) {
   const { progress } = useProgress()
-  return <Html center><div className="loading-token">♠<span>{`نجهّز الطاولة… ${Math.round(progress)}%`}</span></div></Html>
+  if (ready) return null
+  return <div className="table-loading" role="status"><div className="loading-token">♠<span>{`نجهّز الطاولة… ${Math.round(progress)}%`}</span></div></div>
 }
 
 function PlayerSeat({ seat, playerId, playerKey, game, look, remoteLooks, motion, handAnchors }) {
@@ -96,8 +104,9 @@ function PlayerSeat({ seat, playerId, playerKey, game, look, remoteLooks, motion
   </>
 }
 
-function TableScene({ game, look, audio, quality, presence }) {
+function TableScene({ game, look, audio, quality, presence, onReady }) {
   const motion = useRef(0), phaseKey = `${game.phase}:${game.playId}`
+  useEffect(() => { onReady() }, [onReady])
   const handAnchors = useRef([]), soundProgress = useRef({ key: null })
   const previousPhase = useRef(phaseKey)
   useFrame((_, delta) => {
@@ -119,10 +128,14 @@ function TableScene({ game, look, audio, quality, presence }) {
     presence?.sendLook(look.current.actualYaw, look.current.actualPitch)
   }, -1)
   return <>
-    <ambientLight intensity={.8} />
-    <hemisphereLight args={['#ffe4bb', '#163c32', 1.1]} />
-    <directionalLight castShadow={quality.shadows !== false} intensity={2.2} position={[3, 7, 4]} shadow-mapSize={[quality === QUALITY_PRESETS.high ? 2048 : 1024, quality === QUALITY_PRESETS.high ? 2048 : 1024]} />
-    <pointLight position={[-2, 2, -1]} color="#efb76c" intensity={8} />
+    {/* Café mood: a dim room fill, and the pendant's warm cone is the key light on the table and every seat. */}
+    <ambientLight intensity={.32} color="#ffe2c0" />
+    <hemisphereLight args={['#ffd9a8', '#1a1410', .45]} />
+    <spotLight castShadow={quality.shadows !== false} position={[0, 1.62, 0]} angle={1.12} penumbra={.6} decay={1.2} distance={9}
+      intensity={30} color="#ffd29a" shadow-bias={-.0004} shadow-mapSize={[quality === QUALITY_PRESETS.high ? 2048 : 1024, quality === QUALITY_PRESETS.high ? 2048 : 1024]} />
+    <directionalLight intensity={.55} position={[0, 4, 5]} color="#ffe6c4" />
+    <pointLight position={[-1.75, 2.2, -4]} color="#ffbe6a" intensity={3} distance={4} decay={2} />
+    <Room />
     <group position={[0, -.5, 0]}><Model path="/models/table.glb" scale={[2.5, 1.2, 2.5]} /></group>
     <FirstPersonCamera look={look} challenge={game.challenge} seats={game.seats} />
     <GameCards game={game} motion={motion} handAnchors={handAnchors} />
@@ -133,6 +146,7 @@ function TableScene({ game, look, audio, quality, presence }) {
 function GameRound({ config, onExit, state, voice, presence }) {
   const [qualityName, setQualityName] = useState(() => normalizeQuality(localStorage.getItem('takdab-quality')))
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [ready, setReady] = useState(false), onReady = useCallback(() => setReady(true), [])
   const quality = QUALITY_PRESETS[qualityName]
   const seats = useMemo(() => seatsFor(config.players), [config])
   const game = { ...state, seats, players: config.players, renderQuality: quality, playerName: id => config.players[id]?.name ?? playerName(id) }
@@ -145,21 +159,24 @@ function GameRound({ config, onExit, state, voice, presence }) {
   }
   return <main className="app">
     <Canvas shadows={quality.shadows} dpr={quality.dpr} camera={{ position: EYE_POSITION, fov: 75, near: .06 }} aria-label="مشهد اللعبة من منظور شخصيتك، اسحب أو استخدم الأسهم للنظر">
-      <Suspense fallback={<TableLoading />}><TableScene game={game} look={look} audio={audio} quality={quality} presence={presence} /></Suspense>
+      <Suspense fallback={null}><TableScene game={game} look={look} audio={audio} quality={quality} presence={presence} onReady={onReady} /></Suspense>
     </Canvas>
+    <TableLoading ready={ready} />
     <GameOverlay game={game} />
     {voice && <VoiceControls voice={voice} players={config.players} inGame />}
-    <button className="leave-table" onClick={onExit}>الردهة ↗</button>
     <LandscapeNotice />
-    <button className="sound-toggle" onClick={audio.toggle} aria-pressed={audio.enabled} aria-label={audio.enabled ? 'كتم أصوات اللعبة' : 'تشغيل أصوات اللعبة'}>{audio.enabled ? '♪ الصوت' : '♪ صامت'}</button>
+    <nav className="hud-tools" aria-label="أدوات الطاولة">
+    <button className="leave-table" onClick={onExit}>↗ الردهة</button>
+    <button className="sound-toggle" onClick={audio.toggle} aria-pressed={audio.enabled} aria-label={audio.enabled ? 'كتم أصوات اللعبة' : 'تشغيل أصوات اللعبة'}>♪</button>
     <div className="quality-settings">
-      <button className="quality-toggle" onClick={() => setSettingsOpen(open => !open)} aria-expanded={settingsOpen} aria-controls="quality-panel">⚙ الجودة</button>
+      <button className="quality-toggle" onClick={() => setSettingsOpen(open => !open)} aria-expanded={settingsOpen} aria-controls="quality-panel" aria-label="جودة الرسومات">⚙</button>
       {settingsOpen && <section id="quality-panel" className="quality-panel" role="dialog" aria-label="إعدادات جودة الرسومات">
         <div><strong>جودة الرسومات</strong><button aria-label="إغلاق الإعدادات" onClick={() => setSettingsOpen(false)}>×</button></div>
         <p>اختر الوضوح المناسب لهاتفك.</p>
         <div className="quality-options">{Object.entries(QUALITY_PRESETS).map(([name, preset]) => <button key={name} aria-pressed={qualityName === name} onClick={() => chooseQuality(name)}><b>{preset.label}</b><small>{preset.detail}</small></button>)}</div>
       </section>}
     </div>
+    </nav>
   </main>
 }
 
@@ -182,4 +199,4 @@ export default function App() {
   return config ? <LocalGameRound config={config} onExit={() => { setLastConfig(config); setConfig(null) }} />
     : <Lobby initial={lastConfig} onStart={setConfig} onMultiplayer={setOnline} />
 }
-for (const name of ['table', 'chair', 'card']) useGLTF.preload(`/models/${name}.glb`)
+for (const name of ['room', 'table', 'chair', 'card']) useGLTF.preload(`/models/${name}.glb`)

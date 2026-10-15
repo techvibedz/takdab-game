@@ -160,7 +160,7 @@ export function GameCards({ game, motion, handAnchors }) {
     {game.centerPile.map((card, index) =>
       <PileCard key={card.id} card={card} index={index} game={game} motion={motion} handAnchors={handAnchors} />)}
     {game.lastPlay && ['playing', 'challenge'].includes(game.phase) &&
-      <Html key={game.lastPlay.id} position={[0, 0.56, 0]} center zIndexRange={[20, 0]} style={{ left: 0, pointerEvents: 'none', direction: 'ltr', width: 'max-content' }}>
+      <Html key={game.lastPlay.id} position={[0, 0.42, 0]} center zIndexRange={[20, 0]} style={{ left: 0, pointerEvents: 'none', direction: 'ltr', width: 'max-content' }}>
         <div className="play-count" dir="rtl" aria-label={`${game.playerName(game.lastPlay.playerId)}: ${game.lastPlay.actualCards.length} أوراق`}>
           <span className="play-count-cards" aria-hidden="true">♠</span>
           <strong dir="ltr">×{game.lastPlay.actualCards.length}</strong>

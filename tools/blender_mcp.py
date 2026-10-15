@@ -4,7 +4,7 @@ from pathlib import Path
 
 request = {'type':'execute_code','params':{'code':Path(sys.argv[1]).read_text(encoding='utf-8')}}
 with socket.create_connection(('127.0.0.1',9876),timeout=10) as connection:
-    connection.settimeout(180)
+    connection.settimeout(900)
     connection.sendall(json.dumps(request).encode())
     response=bytearray()
     while True:

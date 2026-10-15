@@ -168,3 +168,46 @@ canvas:active { cursor: grabbing; }
   .action-row { width: 105px; gap: 6px; }.action-button { min-height: 44px; font-size: 12px; }.action-button > span:first-child { font-size: 17px; }
   .rank-picker { width: calc(100% - 60px); max-width: 680px; padding: 6px 10px; }.rank-picker b { font-size: 13px; }.rank-picker p { margin: 1px 0 5px; font-size: 9px; }.rank-picker > div { grid-template-columns: repeat(13, minmax(38px, 1fr)); gap: 4px; }.rank-picker button { min-height: 44px; padding: 2px; font-size: 11px; }
 }
+
+/* v1.1 HUD: one compact tool row clear of the seat badges, information off the opponents' faces. */
+.hud-tools { position: absolute; z-index: 60; top: calc(max(14px, env(safe-area-inset-top)) + 2px); left: calc(max(12px, env(safe-area-inset-left)) + 92px); display: flex; gap: 8px; direction: rtl; pointer-events: auto; }
+.hud-tools .leave-table, .hud-tools .sound-toggle, .hud-tools .quality-settings { position: static; }
+.hud-tools .leave-table, .hud-tools .sound-toggle, .hud-tools .quality-toggle { min-width: 44px; min-height: 44px; padding: 6px 12px; border: 1px solid #9baf9766; border-radius: 14px; color: #ffe4a3; background: #102925d9; font: 15px Tahoma, sans-serif; backdrop-filter: blur(6px); box-shadow: 0 3px 0 #06110fa6; }
+.hud-tools .leave-table { font-size: 12px; }
+.hud-tools .sound-toggle[aria-pressed="false"] { opacity: .55; text-decoration: line-through; }
+.hud-tools .quality-panel { top: 52px; left: auto; right: 0; }
+.turn-pill { flex-wrap: wrap; justify-content: center; max-width: min(320px, 60vw); transition: border-color .2s, box-shadow .2s; }
+.turn-pill.turn-local { border-color: #f2cb7c; color: #ffe1a0; box-shadow: 0 0 16px #e5c47255; }
+.turn-pill.turn-local i { background: #ffcf71; box-shadow: 0 0 8px #ffcf71; animation: turn-pulse 1.2s ease-in-out infinite; }
+.turn-pill .deal-track { flex-basis: 100%; width: auto; height: 4px; margin: 4px 0 0; display: block; background: #0006; border-radius: 9px; overflow: hidden; }
+.turn-pill .deal-track i { display: block; width: 0; height: 100%; background: #f3d18a; border-radius: inherit; animation: none; box-shadow: none; transition: width .1s linear; }
+.game-message { display: block; margin: 0 auto 4px; max-width: 560px; padding: 3px 12px; border-radius: 12px; background: #06121588; color: #e7ecdd; text-align: center; text-shadow: 0 1px 2px #000; }
+.game-message:empty { display: none; }
+.reveal-banner { top: calc(122px + env(safe-area-inset-top)); width: max-content; max-width: min(80%, 360px); padding: 8px 20px; }
+.reveal-banner strong { margin: 0; font-size: 19px; }
+.play-count { padding: 5px 11px; gap: 7px; }.play-count strong { font-size: 20px; }.play-count small { font-size: 12px; }.play-count-cards { width: 19px; height: 26px; font-size: 16px; }
+.rank-picker button:disabled { opacity: .3; text-decoration: line-through; cursor: not-allowed; }
+.cheat-button { overflow: hidden; }
+.cheat-button.cheat-ready { animation: cheat-ready 1s ease-in-out infinite alternate; }
+.challenge-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #ffe0a8; transform-origin: right; animation: challenge-drain linear forwards; }
+@keyframes challenge-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes cheat-ready { from { box-shadow: inset 0 2px 0 #ffffff40, 0 5px 12px #0005; } to { box-shadow: inset 0 2px 0 #ffffff40, 0 0 22px #ff7c62aa; } }
+@keyframes turn-pulse { 50% { opacity: .35; } }
+@media (orientation: landscape) and (min-width: 700px) {
+  .rank-picker { max-width: 720px; }.rank-picker p { display: none; }.rank-picker > div { grid-template-columns: repeat(13, minmax(38px, 1fr)); gap: 4px; }.rank-picker button { min-height: 44px; font-size: 12px; }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .hud-tools { top: max(6px, env(safe-area-inset-top)); left: calc(max(10px, env(safe-area-inset-left)) + 74px); gap: 6px; }
+  .hud-tools .leave-table, .hud-tools .sound-toggle, .hud-tools .quality-toggle { min-height: 40px; min-width: 40px; padding: 4px 9px; font-size: 13px; }
+  .hud-tools .leave-table { font-size: 10px; }
+  .hud-tools .quality-panel { top: 46px; left: auto; right: 0; width: 285px; }
+  .reveal-banner { top: calc(84px + env(safe-area-inset-top)); }
+  .game-message { font-size: 10px; max-height: 22px; padding: 1px 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .challenge-timer { animation-duration: 0s !important; } .cheat-button.cheat-ready, .turn-pill.turn-local i { animation: none; } }
+.table-loading { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, #1d3a33ee, #0b151bf5); }
+/* Challenge feedback sits on the felt above the revealed cards, never over the opposite player's face. */
+.local-accusation, .reveal-banner { top: 35%; }
+.local-accusation { text-align: center; }
+.local-accusation small { display: block; font-size: 11px; font-weight: 400; color: #ffe0b0; }
+@media (orientation: landscape) and (max-height: 540px) { .local-accusation, .reveal-banner { top: 33%; padding: 5px 14px; } .local-accusation { font-size: 16px; } }

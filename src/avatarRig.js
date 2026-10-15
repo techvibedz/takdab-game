@@ -46,7 +46,7 @@ export function rigAvatar(root, fit, local) {
       upperLength: lower.position.length(), lowerLength: hand.position.length(),
       target: new Vector3(), initialized: false }
   })
-  return { root, head: bone('Head'), neck: bone('Neck'), headRest: bone('Head').quaternion.clone(), neckRest: bone('Neck').quaternion.clone(),
+  return { root, local, lookYaw: 0, spineTwist: 0, head: bone('Head'), neck: bone('Neck'), headRest: bone('Head').quaternion.clone(), neckRest: bone('Neck').quaternion.clone(),
     spine: bone('Spine'), spineRest: bone('Spine').quaternion.clone(), body: bone('Hips'), arms,
     dispose() { geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); skeletons.forEach(s => s.dispose()) } }
 }
@@ -60,8 +60,12 @@ export function limitJoint(bone, rest, min, max) {
   bone.updateWorldMatrix(false,true)
 }
 
+// Remote avatars turn shoulders with the head (30%) so the neck never twists far enough to tear the beard from the collar.
+export const SPINE_LOOK_SHARE = .3
 export function poseNeck(rig, angles, delta) {
-  limitEuler.set(MathUtils.clamp(angles.x,-.28,.28),MathUtils.clamp(angles.y,-.60,.60),MathUtils.clamp(angles.z,-.12,.12),'YXZ')
+  const yaw = MathUtils.clamp(angles.y, -.78, .78), share = rig.local ? 0 : SPINE_LOOK_SHARE
+  rig.lookYaw = yaw * share
+  limitEuler.set(MathUtils.clamp(angles.x,-.28,.28),MathUtils.clamp(yaw * (1 - share),share ? -.48 : -.60,share ? .48 : .60),MathUtils.clamp(angles.z,-.12,.12),'YXZ')
   limitRotation.setFromEuler(limitEuler).premultiply(rig.neckRest)
   rig.neck.quaternion.slerp(limitRotation,1-Math.exp(-6*delta))
   rig.head.quaternion.copy(rig.headRest)
@@ -71,7 +75,13 @@ export function updateAvatarMixer(rig, mixer, delta, seconds, playerId) {
   // Constant tracks can be omitted by GLB export. Reset before adding breathing so it cannot accumulate.
   rig.spine.quaternion.copy(rig.spineRest)
   mixer.update(delta)
-  rig.spine.rotation.x += Math.sin(seconds * 1.8 + playerId) * 0.006
+  // Breathing plus a slow, per-player weight shift; runs before arm IK so hands still meet the cards exactly.
+  rig.spineTwist += (rig.lookYaw - rig.spineTwist) * (1 - Math.exp(-5 * delta))
+  rig.spine.rotation.x += Math.sin(seconds * 1.6 + playerId) * 0.012
+  if (!rig.local) {
+    rig.spine.rotation.z += Math.sin(seconds * .55 + playerId * 1.7) * 0.018
+    rig.spine.rotateY(rig.spineTwist + Math.sin(seconds * .37 + playerId * 2.3) * 0.025)
+  }
 }
 
 const shoulder = new Vector3(), direction = new Vector3(), bend = new Vector3(), elbow = new Vector3(), wrist = new Vector3()

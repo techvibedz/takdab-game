@@ -191,7 +191,7 @@ test('dealing and arm movement gate input, conserve cards, and reset cleanly', (
 })
 
 test('opener chooses the rank, everyone follows it, and the next opener chooses after collection', () => {
-  let state = cheatReducer(createDealingGame(), { type: 'DEAL_PROGRESS', count: 52 })
+  let state = cheatReducer(createDealingGame(() => .5), { type: 'DEAL_PROGRESS', count: 52 })
   assert.equal(state.currentRank, null)
   assert.equal(play(state, [0]), state)
   assert.equal(cheatReducer(state, { type: 'CHOOSE_RANK', rank: 'Joker' }), state)
@@ -440,4 +440,38 @@ test('local lobbies support complete rounds with 2, 3 or 4 players', () => {
     assert.equal(seats.length,count)
     assert.equal(new Set(seats.map(s=>s.position.join(','))).size,count)
   }
+})
+
+test('a rank cleared as a quartet cannot be chosen, and bots never pick it', async () => {
+  const { deadRanks, botChooseRank } = await import('./cheatEngine.js')
+  let state = cheatReducer(createDealingGame(() => .3, { playerCount: 2 }), { type: 'DEAL_PROGRESS', count: 52 })
+  const aces = [...state.hands.flat(), ...state.discardedCards].filter(card => card.rank === 'Ace')
+  state = { ...state, hands: state.hands.map(hand => hand.filter(card => card.rank !== 'Ace')),
+    discardedCards: [...state.discardedCards.filter(card => card.rank !== 'Ace'), ...aces] }
+  assert.ok(deadRanks(state).includes('Ace'))
+  assert.equal(cheatReducer(state, { type: 'CHOOSE_RANK', playerId: 0, rank: 'Ace' }), state)
+  for (let i = 0; i < 20; i++) assert.notEqual(botChooseRank(state, 1, Math.random), 'Ace')
+})
+
+test('bots tell the truth when they can, bluff with a legal count, and call provable lies', async () => {
+  const { botChooseRank, botPlayIndices, botCallChance } = await import('./cheatEngine.js')
+  const card = (rank, suit) => ({ id: `${suit}-${rank}`, rank, suit })
+  const base = cheatReducer(createDealingGame(() => .3, { playerCount: 3 }), { type: 'DEAL_PROGRESS', count: 52 })
+  let state = { ...base, discardedCards: [], currentRank: null,
+    hands: [[card('2', '♠')], [card('King', '♠'), card('King', '♥'), card('3', '♠'), card('9', '♣')], [card('7', '♠')]] }
+  assert.equal(botChooseRank(state, 1), 'King')
+  state = { ...state, currentRank: 'King' }
+  const honest = botPlayIndices(state, 1, () => .9)
+  assert.deepEqual(honest.map(i => state.hands[1][i].rank), ['King', 'King'])
+  state = { ...state, currentRank: '5' }
+  const bluff = botPlayIndices(state, 1, () => .9)
+  assert.ok(bluff.length >= 1 && bluff.length <= 3 && new Set(bluff).size === bluff.length)
+  // Bot 1 holds two Kings; a claim of three more Kings is impossible.
+  const proven = { ...state, placements: [], centerPile: [card('King', '♦'), card('King', '♣'), card('4', '♥')],
+    lastPlay: { playerId: 2, claimedRank: 'King', actualCards: [card('King', '♦'), card('King', '♣'), card('4', '♥')], id: 1 } }
+  assert.ok(botCallChance(proven, 1) > .9)
+  assert.equal(botCallChance(proven, 2), 0)
+  const plausible = { ...proven, hands: [[card('2', '♠')], [card('3', '♠')], [card('7', '♠')]],
+    lastPlay: { ...proven.lastPlay, actualCards: [card('King', '♦')] } }
+  assert.ok(botCallChance(plausible, 1) < .4)
 })

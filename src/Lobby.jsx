@@ -67,7 +67,7 @@ export function Lobby({ onStart, onMultiplayer, initial }) {
         <div className="count-row"><span>عدد اللاعبين <small>يشملك أنت</small></span><div role="group" aria-label="عدد اللاعبين">{[2, 3, 4].map(n => <button key={n} aria-pressed={count === n} onClick={() => setCount(n)}>{n}</button>)}</div></div>
         <div className="roster">{players.slice(0, count).map((player, i) => <label key={i} className={`roster-row ${i === 0 ? 'human-seat' : ''}`}><span className="seat-number">{String(i + 1).padStart(2, '0')}</span><span className="roster-name"><small>{i === 0 ? 'أنت · المضيف' : 'خصم آلي'}</small><input aria-label={i === 0 ? 'اسمك في اللعبة' : `اسم الخصم ${i}`} maxLength={20} value={player.name} onChange={e => updatePlayer(i, { name: e.target.value })} /></span><span className="ready-label">جاهز ✓</span></label>)}</div>
         <button className="gold-button start-button" onClick={start}><span>ابدأ اللعب<small>{count} لاعبين · جولة محلية</small></span><b aria-hidden="true">←</b></button>
-        <p className="setup-note">كل المقاعد الأخرى خصوم آليون. الإنترنت قريبًا.</p>
+        <p className="setup-note">كل المقاعد الأخرى خصوم آليون — العب مع أصدقائك من «اللعب مع الأصدقاء».</p>
       </div>}
     </section>
     <footer className="lobby-footer"><span>لعبة ورق. قراءة وجوه.</span></footer>

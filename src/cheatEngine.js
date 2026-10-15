@@ -98,7 +98,7 @@ export function cheatReducer(state, action) {
     return next.winner !== null ? next : { ...next, message: `${nameOf(state, next.turnPlayerIndex)} يختار رتبة الجولة الجديدة.` }
   }
   if (action.type === 'CHOOSE_RANK') {
-    if (state.phase !== 'play' || state.centerPile.length || !RANKS.includes(action.rank)) return state
+    if (state.phase !== 'play' || state.centerPile.length || !RANKS.includes(action.rank) || deadRanks(state).includes(action.rank)) return state
     return { ...state, currentRank: action.rank, message: `رتبة الجولة: ${rankName(action.rank)}. ستبقى حتى سحب أوراق الطاولة.` }
   }
   if (action.type === 'SELECT') {
@@ -127,4 +127,46 @@ export function cheatReducer(state, action) {
 
 export function rankToPlay(state) {
   return state.currentRank
+}
+
+// A cleared quartet takes its rank out of the game; choosing it would force everyone to lie.
+export function deadRanks(state) {
+  return RANKS.filter(rank => (state.discardedCards ?? []).filter(card => card.rank === rank).length >= 4)
+}
+
+const rankCounts = hand => hand.reduce((map, card) => map.set(card.rank, (map.get(card.rank) ?? 0) + 1), new Map())
+
+// Bots open with the rank they hold most of, so they can tell the truth for longer.
+export function botChooseRank(state, playerId, random = Math.random) {
+  const dead = deadRanks(state), counts = rankCounts(state.hands[playerId])
+  const options = [...counts].filter(([rank]) => !dead.includes(rank))
+  if (!options.length) return RANKS.find(rank => !dead.includes(rank))
+  const best = Math.max(...options.map(([, count]) => count))
+  const top = options.filter(([, count]) => count === best)
+  return top[Math.floor(random() * top.length)][0]
+}
+
+// Play every honest card; otherwise bluff with the cards least likely to become useful later.
+export function botPlayIndices(state, playerId, random = Math.random) {
+  const hand = state.hands[playerId], counts = rankCounts(hand)
+  const honest = hand.flatMap((card, i) => card.rank === state.currentRank ? [i] : []).slice(0, MAX_PLAY)
+  const others = hand.map((card, i) => [i, counts.get(card.rank)]).filter(([i]) => !honest.includes(i))
+    .sort((a, b) => a[1] - b[1] || random() - .5).map(([i]) => i)
+  if (honest.length) {
+    const extra = honest.length < MAX_PLAY && others.length && random() < .2 ? 1 : 0
+    return [...honest, ...others.slice(0, extra)]
+  }
+  return others.slice(0, random() < .3 && others.length > 1 ? 2 : 1)
+}
+
+// Probability-weighted call: certain when the bot can prove the lie, bolder when the claimant is about to finish.
+export function botCallChance(state, botId) {
+  const play = state.lastPlay
+  if (!play || play.playerId === botId || state.placements.includes(botId)) return 0
+  const held = state.hands[botId].filter(card => card.rank === play.claimedRank).length
+  const gone = (state.discardedCards ?? []).filter(card => card.rank === play.claimedRank).length
+  if (held + gone + play.actualCards.length > 4) return .95
+  const left = state.hands[play.playerId].length
+  const chance = .08 + play.actualCards.length * .06 + held * .07 + (left === 0 ? .55 : left <= 2 ? .18 : 0) - Math.min(.12, state.centerPile.length * .006)
+  return Math.max(.03, Math.min(.9, chance))
 }

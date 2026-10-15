@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from mathutils import Vector, Quaternion
 
-ROOT = Path(r'C:/Users/asus/Documents/ChatGPT/takdab_game')
+ROOT = Path(r'C:/takdab')
 OUT = ROOT / 'artifacts'
 OUT.mkdir(exist_ok=True)
 backup = OUT / 'original-game-models'
@@ -243,7 +243,10 @@ def build(number):
                 aim('Forearm_L',point(-.2,.98,.12))
             for side in ['L','R']:
                 for finger in finger_names:
-                    grip=.20 if side=='R' else .08
+                    # R holds the fan; L rests relaxed with a natural curl rather than a flat open palm.
+                    grip=.22 if side=='R' else .42
+                    if finger=='Thumb': grip*=.5
+                    if finger in ['Ring','Little'] and side=='L': grip+=.08
                     if name=='PlayCards' and side=='L': grip=.22*(1-.7*amount)
                     if name=='Accuse' and side=='L': grip=.7 if finger not in ['Index','Thumb'] else -.1 if finger=='Index' else .2
                     if name=='Celebrate' and side=='L': grip=.7
@@ -278,9 +281,12 @@ def build(number):
     bpy.context.scene.frame_set(1)
     dest=ROOT/'puplic/models'/f'avatar{number}.glb'
     if not (backup/dest.name).exists(): shutil.copy2(dest,backup/dest.name)
+    for node in mesh.active_material.node_tree.nodes:
+        if node.type=='TEX_IMAGE' and node.image and node.image.size[0]>2048: node.image.scale(2048,2048)
     bpy.ops.object.select_all(action='DESELECT');mesh.select_set(True);rig.select_set(True)
     bpy.ops.export_scene.gltf(filepath=str(dest),export_format='GLB',use_selection=True,
-        export_animations=True,export_animation_mode='ACTIONS',export_yup=True,export_extras=True)
+        export_animations=True,export_animation_mode='ACTIONS',export_yup=True,export_extras=True,
+        export_image_format='JPEG',export_jpeg_quality=86)
     rig.animation_data.action=bpy.data.actions['SeatedIdle']
     bpy.context.scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=str(OUT/f'avatar{number}-rigged.blend'))

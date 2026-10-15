@@ -1,4 +1,4 @@
-import { rankToPlay } from './cheatEngine.js'
+import { rankToPlay, deadRanks } from './cheatEngine.js'
 
 export const cleanName = value => {
   const name = String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, 20)
@@ -51,6 +51,7 @@ export function playerView(state, viewerIndex, room) {
       loser: localId(game.challenge.loser),
     },
     rankToPlay: rankToPlay(game),
+    deadRanks: deadRanks(game),
   }
   return { type: 'snapshot', room, status: 'game', selfId: players[0].id, isHost: players[0].isHost, players, game: view }
 }

@@ -24,19 +24,23 @@ export function GameOverlay({ game }) {
       <div className="rank-token"><small>رتبة الجولة</small><strong>{rankName(game.rankToPlay)}</strong></div>
       <div className="pile-token"><span>♠</span><b>{number(game.centerPile.length)}</b><small>على الطاولة</small></div>
     </header>
-    <div className="turn-pill"><i />{dealing ? 'توزيع الأوراق' : game.winner !== null ? `الفائز: ${playerName(game.winner)}` : local ? 'دورك' : `الدور: ${playerName(game.turnPlayerIndex)}`}</div>
-    {game.challenge?.accused === 0 && <div role="status" className="local-accusation">أنت تكذب!</div>}
-    {(game.phase === 'collect' || game.phase === 'reveal' && game.challenge?.accused === 0) && <div role="status" className="reveal-banner" key={game.phase}>
-      <strong>{game.phase === 'reveal' ? 'لحظة الحقيقة!' : game.challenge.lied ? 'انكشف الكذب!' : 'كان صادقًا!'}</strong>
-    </div>}
-    {dealing && <div className="deal-banner"><span className="deal-suits">♠ ♥ ♣ ♦</span><b>نوزّع الحظ…</b>
-      <div className="deal-track" role="progressbar" aria-label="توزيع الأوراق" aria-valuemin={0} aria-valuemax={52} aria-valuenow={game.dealtCount}><i style={{ width: `${game.dealtCount / 52 * 100}%` }} /></div>
+    <div className={`turn-pill ${local ? 'turn-local' : ''}`}><i />{dealing ? 'نوزّع الأوراق…' : game.winner !== null ? `الفائز: ${playerName(game.winner)}` : local ? 'دورك' : `الدور: ${playerName(game.turnPlayerIndex)}`}
+      {dealing && <span className="deal-track" role="progressbar" aria-label="توزيع الأوراق" aria-valuemin={0} aria-valuemax={52} aria-valuenow={game.dealtCount}><i style={{ width: `${game.dealtCount / 52 * 100}%` }} /></span>}
+    </div>
+    {game.challenge?.accused === 0 ? <div role="status" className="local-accusation" key={game.phase}>
+      <small>{game.phase === 'reveal' ? 'لحظة الحقيقة!' : game.challenge.lied ? 'انكشف الكذب!' : 'كنت صادقًا!'}</small>أنت تكذب!
+    </div> : game.phase === 'collect' && <div role="status" className="reveal-banner" key={game.phase}>
+      <strong>{game.challenge.lied ? 'انكشف الكذب!' : 'كان صادقًا!'}</strong>
     </div>}
     <footer className={`hand-panel ${dealing ? 'is-dealing' : ''} ${showRanks ? 'picking-rank' : ''}`}>
-      <p role="status" aria-live="polite" className="sr-only">{game.message}</p>
+      <p role="status" aria-live="polite" className="game-message">{game.message}</p>
       {showRanks && <section className="rank-picker" aria-label="اختر رتبة الجولة">
         <b>اختر رتبة الجولة</b><p>يلعب الجميع نفس الرتبة حتى تُسحب الطاولة</p>
-        <div>{RANKS.map(rank => <button key={rank} aria-pressed={game.currentRank === rank} onClick={() => { game.chooseRank(rank); setEditRank(false) }}>{rankName(rank)}</button>)}</div>
+        <div>{RANKS.map(rank => {
+          const dead = game.deadRanks?.includes(rank)
+          return <button key={rank} aria-pressed={game.currentRank === rank} disabled={dead} title={dead ? 'خرجت أوراقها الأربع من اللعب' : undefined}
+            onClick={() => { game.chooseRank(rank); setEditRank(false) }}>{rankName(rank)}</button>
+        })}</div>
       </section>}
       <div className="hand-content">
       <div className="hand-label"><span>♠ أوراقك <b>{number(count)}</b></span>
@@ -91,7 +95,9 @@ export function GameOverlay({ game }) {
           <button className="action-button play-button" disabled={!local || !game.currentRank || !game.selectedCards.length} onClick={game.playSelectedCards}>
             <span aria-hidden="true">♠</span><span>العب {game.selectedCards.length ? number(game.selectedCards.length) : ''}<small>على أنها {rankName(game.rankToPlay)}</small></span>
           </button>
-          <button className="action-button cheat-button" disabled={!canCallCheat} onClick={game.callCheat}><span aria-hidden="true">!</span>أنت تكذب!</button>
+          <button className={`action-button cheat-button ${canCallCheat ? 'cheat-ready' : ''}`} disabled={!canCallCheat} onClick={game.callCheat}><span aria-hidden="true">!</span>أنت تكذب!
+            {canCallCheat && game.challengeSeconds && game.turnPlayerIndex !== 0 && <i key={game.lastPlay.id} className="challenge-timer" style={{ animationDuration: `${game.challengeSeconds}s` }} aria-hidden="true" />}
+          </button>
         </> : game.winner === null ? <div className="spectating">أنهيت في المركز <b dir="ltr">#{number(localPlacement + 1)}</b><small>اللعبة مستمرة</small></div>
           : game.canRestart === false ? <div className="spectating">بانتظار المضيف<small>لبدء لعبة جديدة</small></div>
             : <button className="action-button play-button" onClick={game.restart}>↻ لعبة جديدة</button>}

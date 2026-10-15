@@ -9,3 +9,4 @@ dist/
 artifacts/
 reference/
 releases/
+.claude/
