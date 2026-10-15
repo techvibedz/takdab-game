@@ -23,7 +23,7 @@ export function seatPoint(playerId, x, y, z, seats = SEATS) {
 }
 
 export function handPoint(playerId, holding = true, seats = SEATS) {
-  return seatPoint(playerId, holding ? 0.25 : -0.26, holding ? 0.49 : 0.385, playerId === 0 ? 0.65 : 0.53, seats)
+  return seatPoint(playerId, holding ? 0.25 : -0.26, holding ? 0.53 : 0.385, playerId === 0 ? 0.65 : 0.53, seats)
 }
 
 export function playPoint(playerId, seats = SEATS) {

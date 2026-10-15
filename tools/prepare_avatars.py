@@ -244,8 +244,10 @@ def build(number):
             for side in ['L','R']:
                 for finger in finger_names:
                     # R holds the fan; L rests relaxed with a natural curl rather than a flat open palm.
-                    grip=.22 if side=='R' else .42
-                    if finger=='Thumb': grip*=.5
+                    # R holds the fan against the finger pads: fingers stay nearly straight behind the cards
+                    # (curling pushed the tips through the faces) and the thumb folds across the front.
+                    grip=.04 if side=='R' else .42
+                    if finger=='Thumb': grip=.5 if side=='R' else grip*.5
                     if finger in ['Ring','Little'] and side=='L': grip+=.08
                     if name=='PlayCards' and side=='L': grip=.22*(1-.7*amount)
                     if name=='Accuse' and side=='L': grip=.7 if finger not in ['Index','Thumb'] else -.1 if finger=='Index' else .2

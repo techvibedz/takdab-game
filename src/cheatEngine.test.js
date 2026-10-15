@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { AnimationMixer, Bone, BufferAttribute, BufferGeometry, Euler, Group, Matrix4, Quaternion, Skeleton, SkinnedMesh, Vector3 } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { avatarFits, rigAvatar, poseArm, poseNeck, orientHand, avatarAnimation, updateAvatarMixer, AVATAR_SCALE } from './avatarRig.js'
+import { avatarFits, rigAvatar, poseArm, poseNeck, orientHand, handGoal, PALM_SIDE, avatarAnimation, updateAvatarMixer, AVATAR_SCALE } from './avatarRig.js'
 import { applyVolumeSkin } from './volumeSkinning.js'
 import { number, rankName } from './arabic.js'
 import { createGame as createDealingGame, cheatReducer, RANKS } from './cheatEngine.js'
@@ -336,15 +336,16 @@ test('Blender avatars retain textures, seated skin, independent head and reachab
         const target = new Vector3(...handPoint(id, i === 1))
         const wrist = poseArm(arm, target, new Vector3(0, -1, 0))
         assert.ok(wrist.distanceTo(target) < .015, `Seat ${id} arm ${i} reaches its cards`)
-        // Card grip: fingers up the fan, palm across. Forearm roll must carry the orientation, not a clamped wrist.
-        const up = (i === 1 ? new Vector3(0, .88, .475) : new Vector3(0, -.42, 1).normalize()).applyAxisAngle(new Vector3(0, 1, 0), seat.rotation[1])
-        const across = new Vector3(1, 0, 0).applyAxisAngle(new Vector3(0, 1, 0), seat.rotation[1])
-        const normal = new Vector3().crossVectors(across, up).normalize(); across.crossVectors(up, normal)
-        const grip = new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(across, up, normal))
+        // Fan in the palm facing the holder (card hand), palm flat on the felt (free hand): the forearm roll must
+        // carry these orientations, not a clamped wrist.
+        const grip = handGoal(i === 1 ? 'hold' : 'rest', seat.rotation[1], i === 1 ? PALM_SIDE.R : PALM_SIDE.L, new Quaternion())
         const before = arm.hand.getWorldPosition(new Vector3())
         orientHand(arm, grip)
         const miss = arm.hand.getWorldQuaternion(new Quaternion()).angleTo(grip)
-        assert.ok(miss < .1, `Seat ${id} arm ${i} hand reaches its grip or resting pose`)
+        assert.ok(miss < .17, `Seat ${id} arm ${i} hand reaches its grip or resting pose`)
+        const palm = new Vector3(i === 1 ? PALM_SIDE.R : PALM_SIDE.L, 0, 0).applyQuaternion(arm.hand.getWorldQuaternion(new Quaternion()))
+        if (i === 0) assert.ok(palm.y < -.9, `Seat ${id} free hand rests palm-down`)
+        else assert.ok(palm.dot(new Vector3(0, 0, 1).applyAxisAngle(new Vector3(0, 1, 0), seat.rotation[1])) < -.7, `Seat ${id} card hand's palm faces the holder`)
         assert.ok(arm.hand.getWorldPosition(new Vector3()).distanceTo(before) < 1e-6, 'Forearm roll never moves the wrist')
         const upperLength = arm.upper.getWorldPosition(new Vector3()).distanceTo(arm.lower.getWorldPosition(new Vector3()))
         assert.ok(Math.abs(upperLength - arm.upperLength * AVATAR_SCALE) < .001)

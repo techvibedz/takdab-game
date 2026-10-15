@@ -1,13 +1,13 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { AnimationMixer, LoopOnce, LoopRepeat, Matrix4, Quaternion, Vector3 } from 'three'
+import { AnimationMixer, LoopOnce, LoopRepeat, Quaternion, Vector3 } from 'three'
 import { handPoint, seatPoint, playPoint, smooth } from './tableMotion'
-import { avatarAnimation, poseArm, updateAvatarMixer, orientHand } from './avatarRig'
+import { avatarAnimation, poseArm, updateAvatarMixer, orientHand, handGoal, gripAnchor, PALM_SIDE } from './avatarRig'
 
 // Game timing is authoritative; IK aligns the original textured hands with the cards.
 export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, playAnchor }) {
   const v = useMemo(() => ({ target: new Vector3(), pole: new Vector3(), forward: new Vector3(),
-    parent: new Quaternion(), palm: new Quaternion(), axis: new Vector3(0, 1, 0), palmX: new Vector3(), palmZ: new Vector3(), basis: new Matrix4() }), [])
+    palm: new Quaternion(), axis: new Vector3(0, 1, 0), palmX: new Vector3(), palmZ: new Vector3() }), [])
   const mixer = useMemo(() => new AnimationMixer(rig.root), [rig])
   const animationClips = useMemo(() => Object.fromEntries(clips.map(clip => {
     const copy = clip.clone()
@@ -68,31 +68,18 @@ export function AvatarArms({ rig, clips, playerId, game, motion, handAnchor, pla
       // Card motion is time-critical; everything else eases like a relaxed arm instead of snapping.
       arm.target.lerp(v.target, 1 - Math.exp(-(idle ? 9 : 26) * delta))
       v.pole.set(holding ? .35 : -.35, -1, -.12).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
-      const restingHand = !holding && !playing && !accusing
-      const wrist = poseArm(arm, arm.target, v.pole, 0)
-      v.forward.set(0, 0, 1).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
+      poseArm(arm, arm.target, v.pole, 0)
+      const side = holding ? PALM_SIDE.R : PALM_SIDE.L, seatAngle = game.seats[playerId].rotation[1]
       if (accusing) {
-        v.forward.fromArray(game.seats[game.challenge.accused].position); v.forward.y = 0.95
-        v.forward.sub(wrist).normalize()
+        arm.hand.getWorldPosition(v.forward)
+        v.palmZ.fromArray(game.seats[game.challenge.accused].position); v.palmZ.y = 0.95
+        v.palmZ.sub(v.forward).normalize()
       }
-      // Fingers point up along the fan; the wrist no longer twists to a palm-up tray pose.
-      if (holding || playing) v.forward.set(0, .88, .475).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
-      // The free hand rests palm-down with fingers drooping toward the felt instead of a palm-up tray.
-      if (restingHand) v.forward.set(0, winner ? 1 : -.42, winner ? .25 : 1).normalize().applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
-      v.palmX.set(1, 0, 0).applyAxisAngle(v.axis, game.seats[playerId].rotation[1])
-      v.palmZ.crossVectors(v.palmX,v.forward).normalize()
-      v.palmX.crossVectors(v.forward,v.palmZ).normalize()
-      v.palm.setFromRotationMatrix(v.basis.makeBasis(v.palmX,v.forward,v.palmZ))
-      orientHand(arm, v.palm)
+      const kind = holding ? 'hold' : accusing ? 'point' : playing ? 'place' : winner ? 'raise' : 'rest'
+      orientHand(arm, handGoal(kind, seatAngle, side, v.palm, v.palmZ))
+      // Same actual hand transform drives the grip, held cards and flight endpoints.
       const anchor = holding ? handAnchor.current : playAnchor.current
-      if (anchor) {
-        // Same actual hand transform drives the grip, held cards and flight endpoints.
-        anchor.position.set(0, .065, -.012)
-        arm.hand.localToWorld(anchor.position)
-        arm.hand.getWorldQuaternion(anchor.quaternion)
-        anchor.rotateY(Math.PI)
-      }
-
+      if (anchor) gripAnchor(arm.hand, side, anchor)
     })
   }, -0.5)
   return null

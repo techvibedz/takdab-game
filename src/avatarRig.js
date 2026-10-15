@@ -1,4 +1,4 @@
-import { Euler, MathUtils, Quaternion, Vector3 } from 'three'
+import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from 'three'
 import { preserveVolume } from './volumeSkinning.js'
 
 export const AVATAR_SCALE = 1.9
@@ -29,11 +29,19 @@ export function rigAvatar(root, fit, local) {
     node.castShadow = node.receiveShadow = true
     node.frustumCulled = false
     if (local) {
+      // First person shows only forearms, hands and the lower sleeves. Cutting at neck height left an open,
+      // hollow torso right under the camera; arms chosen by their dominant bone have no visible cut.
       const geometry = node.geometry.clone(), visible = []
       const positions = geometry.attributes.position, source = geometry.index
+      const { skinIndex, skinWeight } = geometry.attributes, bones = node.skeleton.bones
+      const isArm = vertex => {
+        let best = 0, name = ''
+        for (let k = 0; k < 4; k++) if (skinWeight.getComponent(vertex, k) > best) { best = skinWeight.getComponent(vertex, k); name = bones[skinIndex.getComponent(vertex, k)].name }
+        return /^(Forearm|Hand|Thumb|Index|Middle|Ring|Little)/.test(name) || (/^UpperArm/.test(name) && positions.getY(vertex) < .68)
+      }
       for (let i = 0; i < (source?.count ?? positions.count); i += 3) {
         const triangle = [0, 1, 2].map(j => source ? source.getX(i + j) : i + j)
-        if (triangle.every(j => positions.getY(j) < 0.77)) visible.push(...triangle)
+        if (triangle.every(isArm)) visible.push(...triangle)
       }
       geometry.setIndex(visible); node.geometry = geometry; geometries.push(geometry)
     }
@@ -147,4 +155,34 @@ export function orientHand(arm, desired) {
   limitJoint(arm.hand, arm.handRest, [-.96, -.61, -.70], [.96, .61, .70])
   arm.hand.updateWorldMatrix(false, true)
   return angle
+}
+
+// Hand bones are mirrored: Hand_R's palm faces local -X, Hand_L's faces +X; fingers run along +Y.
+export const PALM_SIDE = { L: 1, R: -1 }
+const goalX = new Vector3(), goalY = new Vector3(), goalZ = new Vector3(), seatF = new Vector3(), seatL = new Vector3(), up = new Vector3(0, 1, 0)
+const goalBasis = new Matrix4()
+// World orientation for a hand pose, from where the fingers point and where the palm faces, in seat terms.
+// kind: 'hold' (fan in the palm, facing the holder), 'rest' (palm on the felt), 'place' (palm down, carrying cards),
+// 'point' (fingers along pointDir), 'raise' (fist up). The hold hand sits on the seat's +x side; medial is toward -x.
+export function handGoal(kind, seatAngle, palmSide, out, pointDir) {
+  seatF.set(0, 0, 1).applyAxisAngle(up, seatAngle); seatL.set(1, 0, 0).applyAxisAngle(up, seatAngle)
+  const medial = palmSide === PALM_SIDE.R ? -1 : 1
+  if (kind === 'hold') { goalY.copy(up).multiplyScalar(.92).addScaledVector(seatL, .38 * medial).addScaledVector(seatF, .1); goalX.copy(seatF).multiplyScalar(-.9).addScaledVector(up, .35) }
+  else if (kind === 'rest') { goalY.copy(seatF).addScaledVector(up, -.25).addScaledVector(seatL, .15 * medial); goalX.set(0, -1, 0) }
+  else if (kind === 'place') { goalY.copy(seatF).multiplyScalar(.9).addScaledVector(up, -.3); goalX.set(0, -1, 0).addScaledVector(seatF, .15) }
+  else if (kind === 'point') { goalY.copy(pointDir); goalX.set(0, -1, 0) }
+  else { goalY.copy(up); goalX.copy(seatL).multiplyScalar(medial) }
+  // goalX currently holds the palm normal; the bone's X axis is that normal times the palm side.
+  goalX.normalize().multiplyScalar(palmSide)
+  goalY.addScaledVector(goalX, -goalY.dot(goalX)).normalize()
+  goalZ.crossVectors(goalX, goalY)
+  return out.setFromRotationMatrix(goalBasis.makeBasis(goalX, goalY, goalZ))
+}
+
+// The card grip sits in the palm, just off the palm surface; card faces look where the palm looks.
+export function gripAnchor(hand, palmSide, anchor) {
+  anchor.position.set(palmSide * .03, .03, 0)
+  hand.localToWorld(anchor.position)
+  hand.getWorldQuaternion(anchor.quaternion)
+  anchor.rotateY(palmSide * Math.PI / 2)
 }
