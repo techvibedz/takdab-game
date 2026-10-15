@@ -31,3 +31,13 @@ test('multiplayer protocol rejects oversized and malformed messages', () => {
   assert.equal(parseClientMessage('x'.repeat(16_385)), null)
   assert.deepEqual(parseClientMessage('{"type":"start"}'), { type: 'start' })
 })
+
+test('first-visit quality fits the device: weak phones get performance, phones balanced, desktops high', async () => {
+  const { defaultQuality, normalizeQuality, QUALITY_PRESETS } = await import('./renderQuality.js')
+  assert.equal(defaultQuality({ maxTouchPoints: 5, deviceMemory: 3, hardwareConcurrency: 8 }, { width: 390, height: 844 }), 'performance')
+  assert.equal(defaultQuality({ maxTouchPoints: 5, deviceMemory: 8, hardwareConcurrency: 8 }, { width: 390, height: 844 }), 'balanced')
+  assert.equal(defaultQuality({ maxTouchPoints: 0, deviceMemory: 8, hardwareConcurrency: 12 }, { width: 2560, height: 1440 }), 'high')
+  assert.equal(normalizeQuality('performance'), 'performance')
+  // Phones never pay for shadows or a dpr above 1.25 unless the player picks "high".
+  for (const name of ['performance', 'balanced']) assert.ok(!QUALITY_PRESETS[name].shadows && QUALITY_PRESETS[name].dpr[1] <= 1.25 && QUALITY_PRESETS[name].fps)
+})

@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Clone, Html, useGLTF, useProgress } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Clone, Html, PerformanceMonitor, useGLTF, useProgress } from '@react-three/drei'
 import { Euler, MathUtils, Quaternion, Vector3 } from 'three'
 import { clone } from 'three/addons/utils/SkeletonUtils.js'
 import { FirstPersonCamera, EYE_POSITION } from './FirstPersonCamera'
@@ -37,6 +37,22 @@ function Room() {
 }
 
 // Read outside the Canvas: inside a Suspense fallback the store update lands mid-render and the percentage froze at 0.
+// Renders only every 1/fps seconds (aligned to the display refresh); hidden tabs render nothing at all.
+function FrameLimiter({ fps }) {
+  const invalidate = useThree(state => state.invalidate)
+  useEffect(() => {
+    if (!fps) return
+    let id, last = 0
+    const step = now => {
+      id = requestAnimationFrame(step)
+      if (now - last >= 1000 / fps - 2) { last = now; invalidate() }
+    }
+    id = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(id)
+  }, [fps, invalidate])
+  return null
+}
+
 function TableLoading({ ready }) {
   const { progress } = useProgress()
   if (ready) return null
@@ -148,6 +164,7 @@ function GameRound({ config, onExit, state, voice, presence }) {
   const [qualityName, setQualityName] = useState(() => normalizeQuality(localStorage.getItem('takdab-quality')))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [ready, setReady] = useState(false), onReady = useCallback(() => setReady(true), [])
+  const [dprScale, setDprScale] = useState(1)
   const quality = QUALITY_PRESETS[qualityName]
   const seats = useMemo(() => seatsFor(config.players), [config])
   const game = { ...state, seats, players: config.players, renderQuality: quality, playerName: id => config.players[id]?.name ?? playerName(id) }
@@ -157,9 +174,15 @@ function GameRound({ config, onExit, state, voice, presence }) {
     const next = normalizeQuality(name)
     localStorage.setItem('takdab-quality', next)
     setQualityName(next)
+    setDprScale(1)
   }
   return <main className="app">
-    <Canvas shadows={quality.shadows} dpr={quality.dpr} camera={{ position: EYE_POSITION, fov: 75, near: .06 }} aria-label="مشهد اللعبة من منظور شخصيتك، اسحب أو استخدم الأسهم للنظر">
+    <Canvas key={qualityName} shadows={quality.shadows} dpr={[quality.dpr[0] * dprScale, quality.dpr[1] * dprScale]} gl={{ antialias: quality.antialias, powerPreference: 'default' }}
+      frameloop={quality.fps ? 'demand' : 'always'} camera={{ position: EYE_POSITION, fov: 75, near: .06 }} aria-label="مشهد اللعبة من منظور شخصيتك، اسحب أو استخدم الأسهم للنظر">
+      <FrameLimiter fps={quality.fps} />
+      {/* Weak phones that still miss the target frame rate drop resolution step by step instead of overheating. */}
+      <PerformanceMonitor bounds={refresh => [(quality.fps ?? refresh) * .75, quality.fps ?? refresh]} flipflops={4}
+        onDecline={() => setDprScale(scale => Math.max(.6, +(scale - .15).toFixed(2)))} />
       <Suspense fallback={null}><TableScene game={game} look={look} audio={audio} quality={quality} presence={presence} onReady={onReady} /></Suspense>
     </Canvas>
     <TableLoading ready={ready} />
@@ -200,4 +223,4 @@ export default function App() {
   return config ? <LocalGameRound config={config} onExit={() => { setLastConfig(config); setConfig(null) }} />
     : <Lobby initial={lastConfig} onStart={setConfig} onMultiplayer={setOnline} />
 }
-for (const name of ['room', 'table', 'chair', 'card']) useGLTF.preload(`/models/${name}.glb`)
+for (const name of ['room', 'table', 'chair']) useGLTF.preload(`/models/${name}.glb`)

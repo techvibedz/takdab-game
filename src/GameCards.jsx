@@ -1,51 +1,65 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { rankName, playerName } from './arabic'
-import { Clone, Html, useGLTF } from '@react-three/drei'
-import { Box3, CanvasTexture, SRGBColorSpace, Quaternion, Euler, Vector3 } from 'three'
+import { Html } from '@react-three/drei'
+import { BoxGeometry, CanvasTexture, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Quaternion, Euler, Vector3 } from 'three'
 import { handPoint, playPoint, cardInHand, CARD_SCALE, smooth, RELEASE_SECONDS, DEAL_PAUSE, DEAL_INTERVAL, DEAL_FLIGHT } from './tableMotion'
 
 const shortRank = rankName
 const PILE_SCALE = CARD_SCALE
 
+// One shared 12-triangle card for every card on the table. The old card.glb had 1,148 triangles per card and
+// ~65 cards are visible at once; faces and backs are canvas textures built once and cached.
+const CARD_SIZE = [0.32, 0.46, 0.014]
+let shared = null
+function sharedCard() {
+  if (shared) return shared
+  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 368
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#f4ead2'; ctx.fillRect(0, 0, 256, 368)
+  ctx.fillStyle = '#123a33'; ctx.beginPath(); ctx.roundRect(12, 12, 232, 344, 14); ctx.fill()
+  ctx.strokeStyle = '#c9933f'; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(22, 22, 212, 324, 10); ctx.stroke()
+  ctx.save(); ctx.beginPath(); ctx.roundRect(30, 30, 196, 308, 8); ctx.clip()
+  ctx.strokeStyle = '#1d5a4c'; ctx.lineWidth = 2
+  for (let i = -368; i < 256 + 368; i += 18) { ctx.beginPath(); ctx.moveTo(i, 30); ctx.lineTo(i + 308, 338); ctx.stroke(); ctx.beginPath(); ctx.moveTo(i + 308, 30); ctx.lineTo(i, 338); ctx.stroke() }
+  ctx.restore()
+  ctx.fillStyle = '#c9933f'; ctx.font = '64px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♠', 128, 184)
+  const back = new CanvasTexture(canvas); back.colorSpace = SRGBColorSpace; back.anisotropy = 4
+  const edge = new MeshStandardMaterial({ color: '#efe5cc', roughness: .8 })
+  const backMaterial = new MeshStandardMaterial({ map: back, roughness: .55 })
+  shared = { geometry: new BoxGeometry(...CARD_SIZE), materials: [edge, edge, edge, edge, backMaterial, backMaterial], faces: new Map(), plane: new PlaneGeometry(0.307, 0.447), glow: new PlaneGeometry(0.35, 0.49) }
+  return shared
+}
+
+function faceTexture(card, quality) {
+  const textureSize = quality?.textureSize ?? 384, key = `${card.rank}${card.suit}${textureSize}`, cache = sharedCard().faces
+  if (cache.has(key)) return cache.get(key)
+  const canvas = document.createElement('canvas')
+  canvas.width = textureSize; canvas.height = Math.round(textureSize * 368 / 256)
+  const ctx = canvas.getContext('2d')
+  ctx.scale(textureSize / 256, textureSize / 256)
+  ctx.fillStyle = '#fff9e9'; ctx.fillRect(0, 0, 256, 368)
+  ctx.fillStyle = ['♥', '♦'].includes(card.suit) ? '#bf3545' : '#18312b'
+  ctx.font = 'bold 48px Georgia'; ctx.fillText(shortRank(card.rank), 16, 52)
+  ctx.font = '38px Georgia'; ctx.fillText(card.suit, 16, 98)
+  ctx.textAlign = 'center'; ctx.font = '100px Georgia'; ctx.fillText(card.suit, 128, 227)
+  ctx.save(); ctx.translate(256, 368); ctx.rotate(Math.PI)
+  ctx.textAlign = 'left'; ctx.font = 'bold 48px Georgia'; ctx.fillText(shortRank(card.rank), 16, 52)
+  ctx.restore()
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; texture.anisotropy = quality?.anisotropy ?? 4
+  const material = new MeshBasicMaterial({ map: texture, toneMapped: false })
+  cache.set(key, material)
+  return material
+}
+
+const glowMaterial = new MeshBasicMaterial({ color: '#e7bb65', toneMapped: false })
 function CardModel({ card, face = false, highlighted = false, quality }) {
-  const { scene } = useGLTF('/models/card.glb')
-  const { scale, offset } = useMemo(() => {
-    const box = new Box3().setFromObject(scene)
-    const size = box.getSize(new Vector3())
-    const center = box.getCenter(new Vector3())
-    return { scale: [0.32 / size.x, 0.46 / size.y, 0.014 / size.z], offset: center.negate().toArray() }
-  }, [scene])
-  const texture = useMemo(() => {
-    if (!face) return null
-    const canvas = document.createElement('canvas')
-    const textureSize = quality?.textureSize ?? 384
-    canvas.width = textureSize; canvas.height = Math.round(textureSize * 368 / 256)
-    const ctx = canvas.getContext('2d')
-    ctx.scale(textureSize / 256, textureSize / 256)
-    ctx.fillStyle = '#fff9e9'; ctx.fillRect(0, 0, 256, 368)
-    ctx.fillStyle = ['♥', '♦'].includes(card.suit) ? '#bf3545' : '#18312b'
-    ctx.font = 'bold 48px Georgia'; ctx.fillText(shortRank(card.rank), 16, 52)
-    ctx.font = '38px Georgia'; ctx.fillText(card.suit, 16, 98)
-    ctx.textAlign = 'center'; ctx.font = '100px Georgia'; ctx.fillText(card.suit, 128, 227)
-    ctx.save(); ctx.translate(256, 368); ctx.rotate(Math.PI)
-    ctx.textAlign = 'left'; ctx.font = 'bold 48px Georgia'; ctx.fillText(shortRank(card.rank), 16, 52)
-    ctx.restore()
-    const result = new CanvasTexture(canvas); result.colorSpace = SRGBColorSpace; result.anisotropy = quality?.anisotropy ?? 4
-    return result
-  }, [card.rank, card.suit, face, quality])
-  useEffect(() => () => texture?.dispose(), [texture])
+  const { geometry, materials, plane, glow } = sharedCard()
   return <>
     {/* Cards never cast shadows: under the low pendant spot, a floating card threw a black card-sized slab onto the felt. */}
-    <group scale={scale}><Clone object={scene} position={offset} receiveShadow /></group>
-    {face && <mesh position={[0, 0, 0.009]}>
-      <planeGeometry args={[0.307, 0.447]} />
-      <meshBasicMaterial map={texture} toneMapped={false} />
-    </mesh>}
-    {highlighted && <mesh position={[0, 0, -0.009]}>
-      <planeGeometry args={[0.35, 0.49]} />
-      <meshBasicMaterial color="#e7bb65" toneMapped={false} />
-    </mesh>}
+    <mesh geometry={geometry} material={materials} receiveShadow />
+    {face && <mesh geometry={plane} material={faceTexture(card, quality)} position={[0, 0, 0.009]} />}
+    {highlighted && <mesh geometry={glow} material={glowMaterial} position={[0, 0, -0.009]} />}
   </>
 }
 
